@@ -242,14 +242,13 @@
 }
 
 .tp-card-content {
-    padding: 1.25rem;
+    padding: 1rem;
     margin-bottom: 1rem;
 }
 
 /* ---- Row 1: white header, blue text ---- */
 .tp-trip-header {
     background: var(--ns-bg-white);
-    padding: 0.9rem 1.25rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -331,7 +330,6 @@
 
 /* ---- Row 2: segment diagram ---- */
 .tp-trip-segments {
-    padding: 0.55rem 1.25rem;
     display: flex;
     align-items: center;
     flex-wrap: wrap;

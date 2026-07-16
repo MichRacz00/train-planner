@@ -31,10 +31,10 @@
     --ns-red-bg:        #FDECEA;
 
     /* Sizing */
-    --ns-radius-sm:     6px;
-    --ns-radius-md:     10px;
-    --ns-radius-lg:     16px;
-    --ns-radius-pill:   100px;
+    --ns-radius-sm:     0px;
+    --ns-radius-md:     0px;
+    --ns-radius-lg:     0px;
+    --ns-radius-pill:   0px;
 
     /* Shadows */
     --ns-shadow-sm:     0 1px 4px rgba(0,0,0,0.10);

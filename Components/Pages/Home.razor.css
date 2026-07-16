@@ -331,11 +331,7 @@
     flex-wrap: wrap;
     gap: 0.35rem;
     background: var(--ns-bg-white);
-}
-
-.tp-pointer {
-    font-size: 1rem;
-    margin-right: 0.1rem;
+    cursor: pointer;
 }
 
 .tp-segment {

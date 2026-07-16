@@ -233,7 +233,7 @@
     overflow: hidden;
     transition: background-color 0.15s, border-color 0.15s;
     cursor: pointer;
-    margin-bottom: 1rem;
+    margin-bottom: 1px;
 }
 
 .tp-trip-card:hover {

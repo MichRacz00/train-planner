@@ -18,6 +18,9 @@ public enum TrainType
     Night
 }
 
+/// <summary>One leg of a journey: a single train service from one stop to the next.</summary>
+public record JourneySegment(TrainType TrainType, string TrainNumber, string Platform);
+
 public record TripResult
 {
     public required string TripId { get; init; }
@@ -25,11 +28,12 @@ public record TripResult
     public required Station To { get; init; }
     public required TimeOnly Departure { get; init; }
     public required TimeOnly Arrival { get; init; }
-    public required TrainType TrainType { get; init; }
-    public required string TrainNumber { get; init; }
     public required decimal PricePerPerson { get; init; }
-    public int Transfers { get; init; } = 0;
+    public List<JourneySegment> Segments { get; init; } = [];
     public List<string> Amenities { get; init; } = [];
+
+    // Derived convenience properties
+    public int Transfers => Math.Max(0, Segments.Count - 1);
 
     public TimeSpan Duration => Arrival > Departure
         ? Arrival - Departure

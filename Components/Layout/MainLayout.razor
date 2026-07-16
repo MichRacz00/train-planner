@@ -1,0 +1,38 @@
+@inherits LayoutComponentBase
+
+<div class="tp-app">
+    <header class="tp-header">
+        <div class="tp-header-inner">
+            <a href="/" class="tp-brand">
+                <svg xmlns="http://www.w3.org/2000/svg" class="tp-brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="3" width="16" height="13" rx="2"/>
+                    <path d="M8 19l-2 3M16 19l2 3M3 13h18"/>
+                    <circle cx="8.5" cy="8" r="1.5" fill="currentColor" stroke="none"/>
+                    <circle cx="15.5" cy="8" r="1.5" fill="currentColor" stroke="none"/>
+                </svg>
+                <span class="tp-brand-name">TrainPlanner</span>
+            </a>
+            <nav class="tp-nav">
+                <a href="/" class="tp-nav-link">Search</a>
+                <a href="#" class="tp-nav-link">My Trips</a>
+                <a href="#" class="tp-nav-link">Help</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="tp-main">
+        @Body
+    </main>
+
+    <footer class="tp-footer">
+        <div class="tp-footer-inner">
+            <span>&copy; @DateTime.Now.Year TrainPlanner &mdash; Stub implementation</span>
+        </div>
+    </footer>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">&#10008;</span>
+</div>

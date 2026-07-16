@@ -1,0 +1,642 @@
+/* ---- Hero ---- */
+.tp-hero {
+    background: linear-gradient(135deg, #1a3a6b 0%, #2a5298 60%, #3a7bd5 100%);
+    color: #fff;
+    padding: 3.5rem 1.5rem 5rem;
+    text-align: center;
+}
+
+.tp-hero-title {
+    font-size: 2.4rem;
+    font-weight: 800;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.03em;
+}
+
+.tp-hero-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.85;
+    margin: 0;
+}
+
+/* ---- Search Card ---- */
+.tp-search-wrapper {
+    max-width: 1100px;
+    margin: -2.5rem auto 0;
+    padding: 0 1.5rem;
+    position: relative;
+    z-index: 10;
+}
+
+.tp-search-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(26,58,107,0.15);
+    padding: 1.75rem;
+}
+
+.tp-search-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.tp-search-field {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 160px;
+}
+
+.tp-search-field--narrow {
+    flex: 0 0 160px;
+    min-width: 140px;
+}
+
+.tp-search-field--xnarrow {
+    flex: 0 0 110px;
+    min-width: 90px;
+}
+
+.tp-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #5a6a82;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.4rem;
+}
+
+.tp-label-icon {
+    font-style: normal;
+}
+
+.tp-select,
+.tp-input {
+    height: 2.75rem;
+    border: 1.5px solid #d1dae8;
+    border-radius: 8px;
+    padding: 0 0.85rem;
+    font-size: 0.95rem;
+    color: #1a2a40;
+    background: #f7f9fc;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.tp-select:focus,
+.tp-input:focus {
+    border-color: #2a5298;
+    box-shadow: 0 0 0 3px rgba(42,82,152,0.12);
+    background: #fff;
+}
+
+/* ---- Swap Button ---- */
+.tp-swap-btn {
+    flex: 0 0 auto;
+    width: 2.5rem;
+    height: 2.75rem;
+    border: 1.5px solid #d1dae8;
+    border-radius: 8px;
+    background: #f7f9fc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5a6a82;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    align-self: flex-end;
+    margin-bottom: 0;
+}
+
+.tp-swap-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.tp-swap-btn:hover {
+    background: #e8eef8;
+    border-color: #2a5298;
+    color: #2a5298;
+}
+
+/* ---- Search Button ---- */
+.tp-search-btn {
+    flex: 0 0 auto;
+    height: 2.75rem;
+    padding: 0 1.5rem;
+    background: #e63946;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    align-self: flex-end;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+}
+
+.tp-search-btn:hover:not(:disabled) {
+    background: #c1121f;
+    transform: translateY(-1px);
+}
+
+.tp-search-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.tp-search-icon {
+    width: 16px;
+    height: 16px;
+}
+
+/* ---- Spinner ---- */
+.tp-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: tp-spin 0.7s linear infinite;
+}
+
+@keyframes tp-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ---- Validation ---- */
+.tp-validation {
+    margin-top: 1rem;
+    padding: 0.6rem 1rem;
+    background: #fff0f0;
+    border: 1px solid #ffb3b3;
+    border-radius: 8px;
+    color: #c1121f;
+    font-size: 0.9rem;
+}
+
+/* ---- Results ---- */
+.tp-results-wrapper {
+    max-width: 1100px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+}
+
+.tp-results-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tp-results-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.tp-results-route {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1a2a40;
+}
+
+.tp-results-meta {
+    font-size: 0.88rem;
+    color: #6b7a90;
+}
+
+.tp-results-count {
+    font-size: 0.88rem;
+    color: #6b7a90;
+    background: #e8eef8;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+}
+
+/* ---- Trip Cards ---- */
+.tp-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.tp-trip-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(26,58,107,0.08);
+    padding: 1.25rem 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 1.25rem;
+    align-items: center;
+    transition: box-shadow 0.15s, transform 0.1s;
+    border: 1.5px solid #e8eef8;
+}
+
+.tp-trip-card:hover {
+    box-shadow: 0 6px 20px rgba(26,58,107,0.14);
+    transform: translateY(-1px);
+    border-color: #c5d4ec;
+}
+
+/* Times section */
+.tp-trip-times {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.tp-trip-time {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.tp-trip-time--right {
+    align-items: flex-end;
+}
+
+.tp-time-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #1a2a40;
+    line-height: 1;
+}
+
+.tp-time-station {
+    font-size: 0.78rem;
+    color: #6b7a90;
+    margin-top: 0.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.tp-trip-duration {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    min-width: 80px;
+}
+
+.tp-duration-line {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(to right, #2a5298, #7ec8e3);
+    border-radius: 2px;
+    position: relative;
+}
+
+.tp-duration-line::before,
+.tp-duration-line::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2a5298;
+}
+
+.tp-duration-line::before { left: 0; }
+.tp-duration-line::after { right: 0; background: #7ec8e3; }
+
+.tp-duration-label {
+    font-size: 0.82rem;
+    color: #5a6a82;
+    font-weight: 600;
+}
+
+.tp-direct-badge {
+    font-size: 0.72rem;
+    color: #2d8a4e;
+    background: #e6f4ec;
+    padding: 0.1rem 0.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.tp-transfers-badge {
+    font-size: 0.72rem;
+    color: #a05800;
+    background: #fff4e0;
+    padding: 0.1rem 0.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+/* Info section */
+.tp-trip-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+    min-width: 140px;
+}
+
+.tp-train-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.65rem;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.tp-train-badge--intercity {
+    background: #e8eef8;
+    color: #1a3a6b;
+}
+
+.tp-train-badge--regional {
+    background: #e6f4ec;
+    color: #1a5c35;
+}
+
+.tp-train-badge--highspeed {
+    background: #fff0f0;
+    color: #a01010;
+}
+
+.tp-train-badge--night {
+    background: #f0e8ff;
+    color: #4a1a8b;
+}
+
+.tp-train-number {
+    font-size: 0.85rem;
+    color: #4a5a70;
+    font-weight: 500;
+}
+
+.tp-amenities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.tp-amenity {
+    font-size: 0.72rem;
+    color: #5a6a82;
+    background: #f0f4f8;
+    padding: 0.15rem 0.5rem;
+    border-radius: 5px;
+}
+
+/* Price section */
+.tp-trip-price {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.6rem;
+}
+
+.tp-price-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.tp-price-amount {
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #1a2a40;
+    line-height: 1;
+}
+
+.tp-price-per-person {
+    font-size: 0.75rem;
+    color: #8a9ab0;
+    margin-top: 0.15rem;
+}
+
+.tp-book-btn {
+    background: #2a5298;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.55rem 1.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+}
+
+.tp-book-btn:hover {
+    background: #1a3a6b;
+    transform: translateY(-1px);
+}
+
+/* ---- No results ---- */
+.tp-no-results {
+    text-align: center;
+    padding: 3rem;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(26,58,107,0.08);
+}
+
+.tp-no-results-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.tp-no-results h3 {
+    color: #1a2a40;
+    margin: 0 0 0.5rem;
+}
+
+.tp-no-results p {
+    color: #6b7a90;
+    margin: 0;
+}
+
+/* ---- Modal ---- */
+.tp-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.tp-modal {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    padding: 2rem;
+    max-width: 480px;
+    width: 100%;
+    position: relative;
+}
+
+.tp-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #6b7a90;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.tp-modal-close:hover {
+    background: #f0f4f8;
+    color: #1a2a40;
+}
+
+.tp-modal-title {
+    margin: 0 0 1.5rem;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1a2a40;
+}
+
+.tp-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-bottom: 1.5rem;
+}
+
+.tp-confirmation-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid #f0f4f8;
+    font-size: 0.95rem;
+}
+
+.tp-confirmation-row--total {
+    border-top: 2px solid #d1dae8;
+    border-bottom: none;
+    padding-top: 0.9rem;
+    margin-top: 0.3rem;
+}
+
+.tp-confirmation-label {
+    color: #6b7a90;
+    font-weight: 500;
+}
+
+.tp-confirmation-value {
+    color: #1a2a40;
+    font-weight: 600;
+    text-align: right;
+}
+
+.tp-price-total {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #1a2a40;
+}
+
+.tp-modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.tp-btn-secondary {
+    padding: 0.6rem 1.4rem;
+    border: 1.5px solid #d1dae8;
+    border-radius: 8px;
+    background: #fff;
+    color: #5a6a82;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.tp-btn-secondary:hover {
+    background: #f0f4f8;
+}
+
+.tp-btn-primary {
+    padding: 0.6rem 1.4rem;
+    border: none;
+    border-radius: 8px;
+    background: #2a5298;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.tp-btn-primary:hover {
+    background: #1a3a6b;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+    .tp-hero-title {
+        font-size: 1.75rem;
+    }
+
+    .tp-search-row {
+        flex-direction: column;
+    }
+
+    .tp-search-field,
+    .tp-search-field--narrow,
+    .tp-search-field--xnarrow {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .tp-swap-btn {
+        width: 100%;
+    }
+
+    .tp-search-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .tp-trip-card {
+        grid-template-columns: 1fr;
+    }
+
+    .tp-trip-price {
+        align-items: flex-start;
+        flex-direction: row;
+        justify-content: space-between;
+    }
+
+    .tp-book-btn {
+        width: auto;
+    }
+
+    .tp-nav {
+        display: none;
+    }
+}

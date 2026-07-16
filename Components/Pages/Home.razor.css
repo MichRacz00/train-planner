@@ -233,12 +233,8 @@
     border-radius: var(--ns-radius-lg);
     box-shadow: var(--ns-shadow-sm);
     border: 1.5px solid var(--ns-border);
-    padding: 1.1rem 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.875rem;
+    overflow: hidden;
     transition: box-shadow 0.15s, border-color 0.15s;
-    cursor: default;
 }
 
 .tp-trip-card:hover {
@@ -246,166 +242,84 @@
     border-color: var(--ns-blue-mid);
 }
 
-/* Times row */
+/* ---- Row 1: blue header with times + price ---- */
+.tp-trip-header {
+    background: var(--ns-blue);
+    padding: 0.9rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Times + arrow group */
 .tp-trip-times {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-}
-
-.tp-trip-time {
-    display: flex;
-    flex-direction: column;
+    gap: 0.75rem;
+    flex: 1;
     min-width: 0;
 }
 
-.tp-trip-time--right {
-    align-items: flex-end;
-}
-
 .tp-time-value {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     font-weight: 800;
-    color: var(--ns-text);
+    color: #fff;
     line-height: 1;
     white-space: nowrap;
+    letter-spacing: -0.02em;
 }
 
-.tp-time-station {
-    font-size: 0.78rem;
-    color: var(--ns-text-muted);
-    margin-top: 0.15rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 110px;
-}
-
-/* Duration bar */
-.tp-trip-duration {
+/* Arrow + duration + badge column */
+.tp-time-arrow {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.2rem;
-    min-width: 60px;
+    min-width: 70px;
 }
 
-.tp-duration-track {
+.tp-arrow-svg {
     width: 100%;
-    height: 3px;
-    background: var(--ns-border);
-    border-radius: 2px;
-    position: relative;
+    max-width: 80px;
+    height: 10px;
+    color: rgba(255,255,255,0.5);
 }
 
-.tp-duration-track::before,
-.tp-duration-track::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--ns-blue);
-    border: 2px solid var(--ns-bg-white);
-    box-shadow: 0 0 0 1.5px var(--ns-blue);
-}
-.tp-duration-track::before { left: -4px; }
-.tp-duration-track::after  { right: -4px; background: var(--ns-blue-mid); box-shadow: 0 0 0 1.5px var(--ns-blue-mid); }
-
-.tp-duration-label {
-    font-size: 0.78rem;
-    color: var(--ns-text-muted);
+.tp-time-duration {
+    font-size: 0.72rem;
     font-weight: 600;
+    color: rgba(255,255,255,0.75);
     white-space: nowrap;
 }
 
-/* Badges */
 .tp-direct-badge {
-    font-size: 0.7rem;
-    color: var(--ns-green);
-    background: var(--ns-green-bg);
-    padding: 0.1rem 0.55rem;
+    font-size: 0.68rem;
+    color: #fff;
+    background: var(--ns-green);
+    padding: 0.1rem 0.5rem;
     border-radius: var(--ns-radius-pill);
     font-weight: 700;
     white-space: nowrap;
 }
 
 .tp-transfers-badge {
-    font-size: 0.7rem;
-    color: var(--ns-orange);
-    background: var(--ns-orange-bg);
-    padding: 0.1rem 0.55rem;
+    font-size: 0.68rem;
+    color: var(--ns-text);
+    background: var(--ns-yellow);
+    padding: 0.1rem 0.5rem;
     border-radius: var(--ns-radius-pill);
     font-weight: 700;
-    white-space: nowrap;
-}
-
-/* Info + price row */
-.tp-trip-bottom {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.tp-trip-info {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
-    flex: 1;
-    min-width: 0;
-}
-
-/* Train type badge */
-.tp-train-badge {
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 0.2rem 0.6rem;
-    border-radius: var(--ns-radius-sm);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-}
-
-.tp-train-badge--intercity  { background: var(--ns-blue-light); color: var(--ns-blue); }
-.tp-train-badge--regional   { background: var(--ns-green-bg);   color: var(--ns-green); }
-.tp-train-badge--highspeed  { background: #FFF3E0;               color: #E65100; }
-.tp-train-badge--night      { background: #F3E5F5;               color: #6A1B9A; }
-
-.tp-train-number {
-    font-size: 0.82rem;
-    color: var(--ns-text-muted);
-    font-weight: 500;
-}
-
-.tp-amenities {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    width: 100%;
-}
-
-.tp-amenity {
-    font-size: 0.72rem;
-    color: var(--ns-text-muted);
-    background: var(--ns-bg);
-    border: 1px solid var(--ns-border);
-    padding: 0.15rem 0.5rem;
-    border-radius: var(--ns-radius-sm);
     white-space: nowrap;
 }
 
 /* Price + CTA */
 .tp-trip-price {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.75rem;
     flex-shrink: 0;
 }
 
@@ -416,38 +330,100 @@
 }
 
 .tp-price-amount {
-    font-size: 1.4rem;
+    font-size: 1.35rem;
     font-weight: 800;
-    color: var(--ns-text);
+    color: #fff;
     line-height: 1;
     white-space: nowrap;
 }
 
 .tp-price-per-person {
-    font-size: 0.72rem;
-    color: var(--ns-text-muted);
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.65);
     margin-top: 0.1rem;
     white-space: nowrap;
 }
 
-/* Yellow pill CTA */
 .tp-book-btn {
     background: var(--ns-yellow);
     color: var(--ns-text);
     border: none;
     border-radius: var(--ns-radius-pill);
-    padding: 0.55rem 1.25rem;
+    padding: 0.5rem 1.1rem;
     font-size: 0.9rem;
     font-weight: 700;
     cursor: pointer;
     transition: background 0.15s, box-shadow 0.15s;
     white-space: nowrap;
     font-family: inherit;
+    flex-shrink: 0;
 }
 
 .tp-book-btn:hover {
     background: var(--ns-yellow-hover);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* ---- Row 2: segment diagram ---- */
+.tp-trip-segments {
+    padding: 0.65rem 1.25rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    background: var(--ns-bg-white);
+    border-top: 1px solid var(--ns-border);
+}
+
+/* One leg: badge + platform */
+.tp-segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.tp-segment-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--ns-radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.tp-segment-badge--intercity { background: var(--ns-blue-light); color: var(--ns-blue); }
+.tp-segment-badge--regional  { background: var(--ns-green-bg);   color: var(--ns-green); }
+.tp-segment-badge--highspeed { background: #FFF3E0;               color: #E65100; }
+.tp-segment-badge--night     { background: #F3E5F5;               color: #6A1B9A; }
+
+.tp-segment-platform {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--ns-text-muted);
+    white-space: nowrap;
+}
+
+.tp-segment-plus {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--ns-text-muted);
+    padding: 0 0.1rem;
+}
+
+/* Thin vertical divider before amenity icons */
+.tp-segment-divider {
+    display: inline-block;
+    width: 1px;
+    height: 1em;
+    background: var(--ns-border);
+    margin: 0 0.25rem;
+    vertical-align: middle;
+}
+
+.tp-amenity {
+    font-size: 0.9rem;
+    line-height: 1;
 }
 
 /* No results */
@@ -670,35 +646,6 @@
         padding: 0 1.75rem;
     }
 
-    /* Cards: 3-col grid on wider screens */
-    .tp-trip-card {
-        flex-direction: row;
-        align-items: center;
-        gap: 1.25rem;
-        flex-wrap: nowrap;
-    }
-
-    .tp-trip-times {
-        flex: 0 0 auto;
-        min-width: 260px;
-    }
-
-    .tp-trip-bottom {
-        flex: 1;
-        flex-wrap: nowrap;
-        align-items: center;
-    }
-
-    .tp-trip-info {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .tp-trip-price {
-        align-items: flex-end;
-        flex-shrink: 0;
-    }
-
     /* Modal as centered dialog on desktop */
     .tp-modal-backdrop {
         align-items: center;
@@ -733,6 +680,4 @@
     .tp-hero-title { font-size: 2.75rem; }
 
     .tp-search-field { flex: 1 1 180px; }
-
-    .tp-time-station { max-width: 140px; }
 }

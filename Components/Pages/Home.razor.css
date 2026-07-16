@@ -230,25 +230,24 @@
 .tp-trip-card {
     background: var(--ns-bg-white);
     border-radius: var(--ns-radius-lg);
-    box-shadow: var(--ns-shadow-sm);
     overflow: hidden;
-    transition: box-shadow 0.15s, border-color 0.15s;
+    transition: background-color 0.15s, border-color 0.15s;
     cursor: pointer;
+    margin-bottom: 1rem;
 }
 
 .tp-trip-card:hover {
-    box-shadow: var(--ns-shadow-md);
-    border-color: var(--ns-blue-mid);
+    background-color: #f9f9f9;
+    border-color: #d0d0d0;
 }
 
 .tp-card-content {
     padding: 1rem;
-    margin-bottom: 1rem;
 }
 
 /* ---- Row 1: white header, blue text ---- */
 .tp-trip-header {
-    background: var(--ns-bg-white);
+    background: inherit;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -334,7 +333,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 0.35rem;
-    background: var(--ns-bg-white);
+    background: inherit;
     cursor: pointer;
 }
 

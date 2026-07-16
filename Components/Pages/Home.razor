@@ -110,12 +110,14 @@
                     <span class="tp-results-route">
                         @GetStationName(SearchParams.FromStation) &rarr; @GetStationName(SearchParams.ToStation)
                     </span>
-                    <span class="tp-results-meta">
-                        @SearchParams.TravelDate.ToString("dddd, d MMMM yyyy") &bull;
-                        @SearchParams.Passengers passenger@(SearchParams.Passengers > 1 ? "s" : "")
-                    </span>
+                    <div class="tp-results-meta-row">
+                        <span class="tp-results-meta">
+                            @SearchParams.TravelDate.ToString("dddd, d MMMM yyyy") &bull;
+                            @SearchParams.Passengers passenger@(SearchParams.Passengers > 1 ? "s" : "")
+                        </span>
+                        <span class="tp-results-count">@TripResults.Count trip@(TripResults.Count != 1 ? "s" : "") found</span>
+                    </div>
                 </div>
-                <span class="tp-results-count">@TripResults.Count trip@(TripResults.Count != 1 ? "s" : "") found</span>
             </div>
 
             <div class="tp-results-list">
@@ -128,7 +130,7 @@
                                 <span class="tp-time-station">@trip.From.Name</span>
                             </div>
                             <div class="tp-trip-duration">
-                                <span class="tp-duration-line"></span>
+                                <span class="tp-duration-track"></span>
                                 <span class="tp-duration-label">@trip.FormattedDuration</span>
                                 @if (trip.Transfers > 0)
                                 {
@@ -145,33 +147,37 @@
                             </div>
                         </div>
 
-                        <div class="tp-trip-info">
-                            <span class="tp-train-badge tp-train-badge--@trip.TrainType.ToString().ToLower()">
-                                @GetTrainTypeLabel(trip.TrainType)
-                            </span>
-                            <span class="tp-train-number">@trip.TrainNumber</span>
-                            @if (trip.Amenities.Count > 0)
-                            {
-                                <div class="tp-amenities">
-                                    @foreach (var amenity in trip.Amenities)
-                                    {
-                                        <span class="tp-amenity">@GetAmenityIcon(amenity) @amenity</span>
-                                    }
+                        <div class="tp-trip-bottom">
+                            <div class="tp-trip-info">
+                                <div>
+                                    <span class="tp-train-badge tp-train-badge--@trip.TrainType.ToString().ToLower()">
+                                        @GetTrainTypeLabel(trip.TrainType)
+                                    </span>
+                                    <span class="tp-train-number">@trip.TrainNumber</span>
                                 </div>
-                            }
-                        </div>
-
-                        <div class="tp-trip-price">
-                            <div class="tp-price-block">
-                                <span class="tp-price-amount">@((trip.PricePerPerson * SearchParams.Passengers).ToString("C0", new System.Globalization.CultureInfo("da-DK")))</span>
-                                @if (SearchParams.Passengers > 1)
+                                @if (trip.Amenities.Count > 0)
                                 {
-                                    <span class="tp-price-per-person">@trip.PricePerPerson.ToString("C0", new System.Globalization.CultureInfo("da-DK")) per person</span>
+                                    <div class="tp-amenities">
+                                        @foreach (var amenity in trip.Amenities)
+                                        {
+                                            <span class="tp-amenity">@GetAmenityIcon(amenity) @amenity</span>
+                                        }
+                                    </div>
                                 }
                             </div>
-                            <button class="tp-book-btn" @onclick="() => SelectTrip(trip)">
-                                Select
-                            </button>
+
+                            <div class="tp-trip-price">
+                                <div class="tp-price-block">
+                                    <span class="tp-price-amount">@((trip.PricePerPerson * SearchParams.Passengers).ToString("C0", new System.Globalization.CultureInfo("da-DK")))</span>
+                                    @if (SearchParams.Passengers > 1)
+                                    {
+                                        <span class="tp-price-per-person">@trip.PricePerPerson.ToString("C0", new System.Globalization.CultureInfo("da-DK")) per person</span>
+                                    }
+                                </div>
+                                <button class="tp-book-btn" @onclick="() => SelectTrip(trip)">
+                                    Select
+                                </button>
+                            </div>
                         </div>
                     </div>
                 }

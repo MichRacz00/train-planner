@@ -1,88 +1,126 @@
-/* ---- App Shell ---- */
-.tp-app {
+/* =========================================================
+   NS-style App Shell — header, footer, layout
+   ========================================================= */
+
+.ns-app {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    background: #f0f4f8;
+    background: var(--ns-bg);
 }
 
 /* ---- Header ---- */
-.tp-header {
-    background: #1a3a6b;
-    color: #fff;
+.ns-header {
+    background: var(--ns-bg-white);
+    border-bottom: 4px solid var(--ns-yellow);
     position: sticky;
     top: 0;
-    z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    z-index: 200;
+    box-shadow: var(--ns-shadow-sm);
 }
 
-.tp-header-inner {
-    max-width: 1100px;
+.ns-header__inner {
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 0 1.5rem;
-    height: 3.75rem;
+    padding: 0 1rem;
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1rem;
 }
 
-.tp-brand {
+/* Logo */
+.ns-header__logo {
     display: flex;
     align-items: center;
     gap: 0.6rem;
     text-decoration: none;
-    color: #fff;
+    flex-shrink: 0;
 }
 
-.tp-brand-icon {
-    width: 28px;
-    height: 28px;
-    color: #7ec8e3;
+.ns-header__logo-icon {
+    width: 36px;
+    height: 36px;
 }
 
-.tp-brand-name {
-    font-size: 1.25rem;
-    font-weight: 700;
+.ns-header__logo-text {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--ns-blue);
     letter-spacing: -0.02em;
 }
 
-.tp-nav {
+/* Desktop nav */
+.ns-header__nav {
     display: flex;
     gap: 0.25rem;
+    align-items: center;
 }
 
-.tp-nav-link {
-    color: rgba(255,255,255,0.8);
-    text-decoration: none;
-    padding: 0.4rem 0.85rem;
-    border-radius: 6px;
+.ns-header__nav-link {
     font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ns-text-mid);
+    text-decoration: none;
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--ns-radius-pill);
     transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
 }
 
-.tp-nav-link:hover {
-    background: rgba(255,255,255,0.12);
-    color: #fff;
+.ns-header__nav-link:hover {
+    background: var(--ns-blue-light);
+    color: var(--ns-blue);
+    text-decoration: none;
+}
+
+.ns-header__nav-link--active {
+    background: var(--ns-blue-light);
+    color: var(--ns-blue);
+}
+
+/* Hamburger */
+.ns-header__menu-btn {
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 28px;
+    height: 20px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.ns-header__menu-btn span {
+    display: block;
+    height: 2.5px;
+    background: var(--ns-blue);
+    border-radius: 2px;
+    transition: transform 0.2s;
 }
 
 /* ---- Main ---- */
-.tp-main {
+.ns-main {
     flex: 1;
 }
 
 /* ---- Footer ---- */
-.tp-footer {
-    background: #1a3a6b;
-    color: rgba(255,255,255,0.6);
-    font-size: 0.82rem;
-    padding: 1rem 0;
+.ns-footer {
+    background: var(--ns-blue);
+    color: rgba(255, 255, 255, 0.7);
+    padding: 1.25rem 0;
+    margin-top: 3rem;
 }
 
-.tp-footer-inner {
-    max-width: 1100px;
+.ns-footer__inner {
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 0 1rem;
     text-align: center;
+    font-size: 0.82rem;
 }
 
 /* ---- Blazor error UI ---- */
@@ -105,4 +143,37 @@
     position: absolute;
     right: 0.75rem;
     top: 0.5rem;
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 640px) {
+    .ns-header__menu-btn {
+        display: flex;
+    }
+
+    .ns-header__nav {
+        display: none;
+        position: absolute;
+        top: 64px;
+        left: 0;
+        right: 0;
+        background: var(--ns-bg-white);
+        flex-direction: column;
+        align-items: stretch;
+        padding: 0.5rem 1rem 1rem;
+        border-bottom: 2px solid var(--ns-yellow);
+        box-shadow: var(--ns-shadow-md);
+        gap: 0.25rem;
+        z-index: 199;
+    }
+
+    .ns-header__nav--open {
+        display: flex;
+    }
+
+    .ns-header__nav-link {
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        border-radius: var(--ns-radius-md);
+    }
 }

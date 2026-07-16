@@ -1,32 +1,43 @@
 @inherits LayoutComponentBase
 
-<div class="tp-app">
-    <header class="tp-header">
-        <div class="tp-header-inner">
-            <a href="/" class="tp-brand">
-                <svg xmlns="http://www.w3.org/2000/svg" class="tp-brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="4" y="3" width="16" height="13" rx="2"/>
-                    <path d="M8 19l-2 3M16 19l2 3M3 13h18"/>
-                    <circle cx="8.5" cy="8" r="1.5" fill="currentColor" stroke="none"/>
-                    <circle cx="15.5" cy="8" r="1.5" fill="currentColor" stroke="none"/>
+<div class="ns-app">
+    <header class="ns-header">
+        <div class="ns-header__inner">
+            <!-- Logo -->
+            <a href="/" class="ns-header__logo" aria-label="Train Planner home">
+                <svg class="ns-header__logo-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <rect width="40" height="40" rx="6" fill="#FFC917"/>
+                    <rect x="8" y="10" width="24" height="16" rx="3" fill="#003082"/>
+                    <rect x="8" y="22" width="24" height="4" rx="0" fill="#003082"/>
+                    <circle cx="13" cy="30" r="3" fill="#003082"/>
+                    <circle cx="27" cy="30" r="3" fill="#003082"/>
+                    <rect x="12" y="14" width="7" height="5" rx="1" fill="white"/>
+                    <rect x="21" y="14" width="7" height="5" rx="1" fill="white"/>
                 </svg>
-                <span class="tp-brand-name">TrainPlanner</span>
+                <span class="ns-header__logo-text">TrainPlanner</span>
             </a>
-            <nav class="tp-nav">
-                <a href="/" class="tp-nav-link">Search</a>
-                <a href="#" class="tp-nav-link">My Trips</a>
-                <a href="#" class="tp-nav-link">Help</a>
+
+            <!-- Desktop nav -->
+            <nav class="ns-header__nav" aria-label="Main navigation">
+                <a href="/" class="ns-header__nav-link ns-header__nav-link--active">Plan journey</a>
+                <a href="#" class="ns-header__nav-link">My trips</a>
+                <a href="#" class="ns-header__nav-link">Help</a>
             </nav>
+
+            <!-- Mobile hamburger -->
+            <button class="ns-header__menu-btn" aria-label="Open menu" onclick="document.querySelector('.ns-header__nav').classList.toggle('ns-header__nav--open')">
+                <span></span><span></span><span></span>
+            </button>
         </div>
     </header>
 
-    <main class="tp-main">
+    <main class="ns-main" id="mainContent">
         @Body
     </main>
 
-    <footer class="tp-footer">
-        <div class="tp-footer-inner">
-            <span>&copy; @DateTime.Now.Year TrainPlanner &mdash; Stub implementation</span>
+    <footer class="ns-footer">
+        <div class="ns-footer__inner">
+            <span class="ns-footer__copy">&copy; @DateTime.Now.Year TrainPlanner &mdash; stub implementation</span>
         </div>
     </footer>
 </div>

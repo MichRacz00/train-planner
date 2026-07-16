@@ -124,39 +124,41 @@
                 @foreach (var trip in TripResults)
                 {
                     <div class="tp-trip-card">
-                        <div class="tp-trip-header">
-                            <div class="tp-trip-times">
-                                <span class="tp-time-value">@trip.Departure.ToString("HH:mm")</span>
-                                <span class="tp-arrow">&#8594;</span>
-                                <span class="tp-time-value">@trip.Arrival.ToString("HH:mm")</span>
-                            </div>
-
-                            <div class="tp-trip-price">
-                                <div class="tp-price-block">
-                                    <span class="tp-price-amount">@((trip.PricePerPerson * SearchParams.Passengers).ToString("C0", new System.Globalization.CultureInfo("da-DK")))</span>
-                                    @if (SearchParams.Passengers > 1)
-                                    {
-                                        <span class="tp-price-per-person">@trip.PricePerPerson.ToString("C0", new System.Globalization.CultureInfo("da-DK")) / person</span>
-                                    }
+                        <div class="tp-card-content">
+                            <div class="tp-trip-header">
+                                <div class="tp-trip-times">
+                                    <span class="tp-time-value">@trip.Departure.ToString("HH:mm")</span>
+                                    <span class="tp-arrow">&#8594;</span>
+                                    <span class="tp-time-value">@trip.Arrival.ToString("HH:mm")</span>
                                 </div>
-                                <button class="tp-book-btn" @onclick="() => SelectTrip(trip)">
-                                    Select
-                                </button>
-                            </div>
-                        </div>
 
-                        <div class="tp-trip-segments">
-                            @for (int i = 0; i < trip.Segments.Count; i++)
-                            {
-                                var seg = trip.Segments[i];
-                                <span class="tp-segment">
-                                    @GetTrainTypeLabel(seg.TrainType) P@(seg.Platform)
-                                </span>
-                                @if (i < trip.Segments.Count - 1)
+                                <div class="tp-trip-price">
+                                    <div class="tp-price-block">
+                                        <span class="tp-price-amount">@((trip.PricePerPerson * SearchParams.Passengers).ToString("C0", new System.Globalization.CultureInfo("da-DK")))</span>
+                                        @if (SearchParams.Passengers > 1)
+                                        {
+                                            <span class="tp-price-per-person">@trip.PricePerPerson.ToString("C0", new System.Globalization.CultureInfo("da-DK")) / person</span>
+                                        }
+                                    </div>
+                                    <button class="tp-book-btn" @onclick="() => SelectTrip(trip)">
+                                        Select
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="tp-trip-segments">
+                                @for (int i = 0; i < trip.Segments.Count; i++)
                                 {
-                                    <span class="tp-segment-plus">+</span>
+                                    var seg = trip.Segments[i];
+                                    <span class="tp-segment">
+                                        @GetTrainTypeLabel(seg.TrainType) P@(seg.Platform)
+                                    </span>
+                                    @if (i < trip.Segments.Count - 1)
+                                    {
+                                        <span class="tp-segment-plus">+</span>
+                                    }
                                 }
-                            }
+                            </div>
                         </div>
                     </div>
                 }

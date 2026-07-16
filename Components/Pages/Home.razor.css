@@ -241,6 +241,11 @@
     border-color: var(--ns-blue-mid);
 }
 
+.tp-card-content {
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+
 /* ---- Row 1: white header, blue text ---- */
 .tp-trip-header {
     background: var(--ns-bg-white);

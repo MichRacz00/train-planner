@@ -21,6 +21,7 @@ builder.Services.AddHttpClient("PlkApi", (sp, client) =>
 });
 
 builder.Services.AddScoped<IPlkTripService, PlkTripService>();
+builder.Services.AddScoped<ITripPathfinder, CsaPathfinder>();
 
 
 var app = builder.Build();

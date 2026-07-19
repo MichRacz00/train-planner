@@ -6,18 +6,35 @@ namespace train_planner.Services;
 
 public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public async Task<IReadOnlyList<PlkStation>> GetStationsAsync(
-        string? search = null, int pageSize = 500)
+        string? search = null, int pageSize = 200)
     {
         var client = CreateClient();
-        var url = $"/api/v1/dictionaries/stations?pageSize={pageSize}"
-                + (string.IsNullOrEmpty(search) ? "" : $"&search={Uri.EscapeDataString(search)}");
+        var searchSuffix = string.IsNullOrEmpty(search) ? "" : $"&search={Uri.EscapeDataString(search)}";
+        var all = new List<PlkStation>();
+        var page = 1;
+        int totalPages;
+        
+        do
+        {
+            var url = $"/api/v1/dictionaries/stations?page={page}&pageSize={pageSize}{searchSuffix}";
+            var raw = await client.GetStringAsync(url);
+            var response = JsonSerializer.Deserialize<PlkStationsResponse>(raw, JsonOptions);
 
-        var response = await client.GetFromJsonAsync<PlkStationsResponse>(url);
-        return response?.Stations?
-                   .Select(s => new PlkStation(s.Id, s.Name ?? "", ""))
-                   .ToList()
-               ?? [];
+            if (response?.Stations is { Count: > 0 } stations)
+                all.AddRange(stations.Select(s => new PlkStation(s.Id, s.Name ?? "", "")));
+
+            totalPages = response?.TotalPages ?? 1;
+            page++;
+        }
+        while (page <= totalPages);
+
+        return all;
     }
 
     public async Task<List<ScheduledTrip>> SearchTripsAsync(PlkTripSearchParams searchParams)

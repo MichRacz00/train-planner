@@ -144,6 +144,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         Console.WriteLine($"[CSA] Phase 3: Starting CSA scan...");
         var labels = new Dictionary<int, Label>();
         var predecessors = new Dictionary<Connection, Connection?>();
+        var destinationArrivals = new List<(TimeSpan ArrivalTime, Journey Journey)>();
         var connectionsEvaluated = 0;
         var connectionsBoarded = 0;
         var connectionsSkipped = 0;
@@ -201,12 +202,22 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             var depTimeOnly = ToTimeOnly(conn.DepartureTime);
             var arrTimeOnly = ToTimeOnly(conn.ArrivalTime);
             Console.WriteLine($"[CSA] Boarded connection: {conn.TrainName} {conn.FromStationId}@{depTimeOnly:HH:mm} -> {conn.ToStationId}@{arrTimeOnly:HH:mm}");
+
+            // Collect if we reached destination (don't stop, continue scanning)
+            if (conn.ToStationId == toStationId)
+            {
+                var discoveredJourney = ReconstructJourney(conn, predecessors);
+                destinationArrivals.Add((conn.ArrivalTime, discoveredJourney));
+                Console.WriteLine($"[CSA] Found route to destination with {discoveredJourney.Transfers} transfers, continuing scan...");
+            }
         }
 
-        Console.WriteLine($"[CSA] Phase 3 complete: evaluated {connectionsEvaluated}, boarded {connectionsBoarded}, skipped {connectionsSkipped}");
+        Console.WriteLine($"[CSA] Phase 3 complete: evaluated {connectionsEvaluated}, boarded {connectionsBoarded}, skipped {connectionsSkipped}, found {destinationArrivals.Count} routes to destination");
 
-        // Reconstruct the earliest-arrival journey
-        if (!labels.TryGetValue(toStationId, out var finalLabel))
+        // Phase 4: Filter routes by time bands
+        Console.WriteLine($"[CSA] Phase 4: Filtering {destinationArrivals.Count} routes by time bands...");
+        
+        if (destinationArrivals.Count == 0)
         {
             Console.WriteLine($"[CSA] No path found to destination");
             sw.Stop();
@@ -214,13 +225,54 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             return [];
         }
 
-        var journey = ReconstructJourney(finalLabel.LastConnection, predecessors);
-        var trip = BuildTrip(journey);
+        var beforeDeparture = new List<MultiSegmentTrip>();
+        var afterDeparture = new List<MultiSegmentTrip>();
+        var seenRoutes = new HashSet<string>();
+        var departureTimeThreshold = departureAfter.ToTimeSpan();
+
+        foreach (var (_, discoveredJourney) in destinationArrivals)
+        {
+            if (seenRoutes.Count >= 20) break;
+
+            var routeKey = GetJourneyKey(discoveredJourney);
+            if (seenRoutes.Contains(routeKey)) continue;
+
+            var trip = BuildTrip(discoveredJourney);
+            if (trip == null) continue;
+
+            seenRoutes.Add(routeKey);
+
+            // Classify by departure time
+            var journeyDepTime = discoveredJourney.Connections[0].DepartureTime;
+
+            if (journeyDepTime < departureTimeThreshold)
+            {
+                if (beforeDeparture.Count < 3)
+                {
+                    beforeDeparture.Add(trip);
+                    Console.WriteLine($"[CSA] Route {ToTimeOnly(journeyDepTime):HH:mm}-{trip.ArrivalTime:HH:mm} added to BEFORE band");
+                }
+            }
+            else
+            {
+                if (afterDeparture.Count < 17)
+                {
+                    afterDeparture.Add(trip);
+                    Console.WriteLine($"[CSA] Route {ToTimeOnly(journeyDepTime):HH:mm}-{trip.ArrivalTime:HH:mm} added to AFTER band");
+                }
+            }
+        }
+
+        var results = beforeDeparture
+            .Concat(afterDeparture)
+            .OrderBy(t => t.DepartureTime)
+            .Take(20)
+            .ToList();
 
         sw.Stop();
-        Console.WriteLine($"[CSA] Complete: returned {(trip is not null ? 1 : 0)} results in {sw.ElapsedMilliseconds}ms");
+        Console.WriteLine($"[CSA] Complete: returned {results.Count} results ({beforeDeparture.Count} before, {afterDeparture.Count} after) in {sw.ElapsedMilliseconds}ms");
 
-        return trip is not null ? [trip] : [];
+        return results;
     }
 
     /// <summary>
@@ -254,6 +306,14 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         Console.WriteLine($"[CSA] Journey reconstruction complete: {path.Count} connections, {transfers} transfers");
 
         return new Journey(path, transfers);
+    }
+
+    /// <summary>
+    /// Get deduplication key for a journey (route composition).
+    /// </summary>
+    private static string GetJourneyKey(Journey journey)
+    {
+        return string.Join("|", journey.Connections.Select(c => $"{c.ScheduleId}:{c.OrderId}"));
     }
 
     /// <summary>

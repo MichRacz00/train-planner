@@ -177,7 +177,7 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
     public async Task<List<PlkRouteDto>> GetAllRoutesAsync(DateOnly date)
     {
         var client = CreateClient();
-        var url = $"/api/v1/schedules?dateFrom={date:yyyy-MM-dd}&dateTo={date:yyyy-MM-dd}";
+        var url = $"/api/v1/schedules?dateFrom={date:yyyy-MM-dd}&dateTo={date:yyyy-MM-dd}&fullRoute=true&dictionaries=false";
         var raw = await client.GetStringAsync(url);
         var resp = JsonSerializer.Deserialize<PlkScheduleResponse>(raw, JsonOptions);
         return resp?.Routes ?? [];

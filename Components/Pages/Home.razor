@@ -123,7 +123,8 @@
             <div class="tp-results-list">
                 @foreach (var trip in TripResults)
                 {
-                    <div class="tp-trip-card">
+                    <div class="tp-trip-card @(SelectedTrip?.TripId == trip.TripId ? "tp-trip-card--selected" : "")"
+                         @onclick="() => SelectTrip(trip)">
                         <div class="tp-card-content">
                             <div class="tp-trip-header">
                                 <div class="tp-trip-times">
@@ -257,6 +258,7 @@
         TripResults = await TripService.SearchTripsAsync(SearchParams);
         HasSearched = true;
         IsSearching = false;
+        SelectedTrip = BestTrip(TripResults);
     }
 
     private void SwapStations()
@@ -294,7 +296,15 @@
 
     private void SelectTrip(TripResult trip)
     {
-        SelectedTrip = trip;
+        SelectedTrip = SelectedTrip?.TripId == trip.TripId ? null : trip;
+    }
+
+    private static TripResult? BestTrip(List<TripResult> trips)
+    {
+        if (trips.Count == 0) return null;
+        var now = TimeOnly.FromDateTime(DateTime.Now);
+        // First trip that hasn't departed yet; fall back to last if all are past
+        return trips.FirstOrDefault(t => t.Departure >= now) ?? trips[^1];
     }
 
     private void CloseModal()

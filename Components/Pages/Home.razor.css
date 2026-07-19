@@ -241,6 +241,11 @@
     border-color: #d0d0d0;
 }
 
+.tp-trip-card--selected {
+    border: 2px solid var(--ns-blue-light);
+    box-shadow: 0 4px 16px rgba(0, 80, 200, 0.18);
+}
+
 .tp-card-content {
     padding: 1rem;
 }

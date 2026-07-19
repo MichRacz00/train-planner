@@ -51,7 +51,11 @@ public record TripResult
 
 // ── PLK API data models ─────────────────────────────────────────────────────
 
-public record PlkStation(int Id, string Name, string City);
+public record PlkStation(int Id, string Name, string City)
+{
+    // Compat: markup uses station.Code (string) for select option values
+    public string Code => Id.ToString();
+}
 
 public record PlkTripSearchParams
 {

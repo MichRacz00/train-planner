@@ -123,7 +123,7 @@
             <div class="tp-results-list">
                 @foreach (var trip in TripResults)
                 {
-                    <div class="tp-trip-card @(SelectedTrip?.TripId == trip.TripId ? "tp-trip-card--selected" : "")"
+                    <div class="tp-trip-card @(SelectedTrip?.ScheduleId == trip.ScheduleId && SelectedTrip?.OrderId == trip.OrderId ? "tp-trip-card--selected" : "")"
                          @onclick="() => SelectTrip(trip)">
                         <div class="tp-card-content">
                             <div class="tp-trip-header">
@@ -268,16 +268,15 @@
         _               => "•"
     };
 
-    private void SelectTrip(TripResult trip)
+    private void SelectTrip(ScheduledTrip trip)
     {
-        SelectedTrip = SelectedTrip?.TripId == trip.TripId ? null : trip;
+        SelectedTrip = SelectedTrip?.ScheduleId == trip.ScheduleId && SelectedTrip?.OrderId == trip.OrderId ? null : trip;
     }
     
-    private static TripResult? BestTrip(List<TripResult> trips)
+    private static ScheduledTrip? BestTrip(List<ScheduledTrip> trips)
     {
         if (trips.Count == 0) return null;
         var now = TimeOnly.FromDateTime(DateTime.Now);
-        // First trip that hasn't departed yet; fall back to last if all are past
-        return trips.FirstOrDefault(t => t.Departure >= now) ?? trips[^1];
+        return trips.FirstOrDefault(t => t.PlannedDeparture >= now) ?? trips[^1];
     }
 }

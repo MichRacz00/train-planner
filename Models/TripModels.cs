@@ -110,3 +110,26 @@ public record ScheduledTrip
                   DeparturePlatform ?? "")]
             : [];
 }
+
+// A single leg of a multi-segment journey
+public record TripSegment(
+    int ScheduleId,
+    int OrderId,
+    string TrainName,
+    string CarrierCode,
+    string CommercialCategory,
+    PlkStation From,
+    PlkStation To,
+    TimeOnly PlannedDeparture,
+    TimeOnly PlannedArrival,
+    string? DeparturePlatform,
+    string? ArrivalPlatform);
+
+// A complete multi-segment journey produced by the CSA pathfinder
+public record MultiSegmentTrip(
+    IReadOnlyList<TripSegment> Segments,
+    TimeOnly DepartureTime,
+    TimeOnly ArrivalTime,
+    int Transfers,
+    TimeSpan TotalDuration,
+    TimeSpan TransferTime);

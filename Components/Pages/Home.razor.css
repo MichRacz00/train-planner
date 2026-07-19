@@ -234,19 +234,21 @@
     transition: background-color 0.15s, border-color 0.15s;
     cursor: pointer;
     margin-bottom: 1px;
+    border: 1px solid transparent;
+    border-left-width: 4px;
 }
 
-.tp-trip-card:hover {
+.tp-trip-card:hover:not(.tp-trip-card--selected) {
     background-color: #f9f9f9;
-    border-color: #d0d0d0;
 }
 
 .tp-trip-card--selected {
-    border: 2px solid var(--ns-blue-light);
+    border: 1px solid var(--ns-blue-light);
+    border-left-width: 5px;
     box-shadow: 0 4px 16px rgba(0, 80, 200, 0.18);
 }
 
-.tp-card-content {
+.tp-card-content {  
     padding: 1rem;
 }
 

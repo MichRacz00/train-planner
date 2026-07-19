@@ -7,9 +7,6 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 {
     private readonly IPlkTripService _tripService = tripService;
 
-    private const int MaxTransfers = 3;
-    private const int MaxResults = 20;
-
     // A single connection: one train segment between two stations
     private sealed class Connection
     {
@@ -24,9 +21,6 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         public string CommercialCategory { get; init; } = "";
         public string? DeparturePlatform { get; init; }
         public string? ArrivalPlatform { get; init; }
-
-        // The exact predecessor connection in the journey chain
-        public Connection? Previous { get; set; }
     }
 
     // Journey result: list of connections taken and transfer count
@@ -125,7 +119,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         Console.WriteLine($"[CSA] Phase 3: Starting CSA scan...");
         var bestArrival = new Dictionary<int, TimeOnly>();
         var bestConnection = new Dictionary<int, Connection>();
-        var journeys = new List<Journey>();
+        var predecessors = new Dictionary<Connection, Connection?>();
         var connectionsEvaluated = 0;
         var connectionsBoarded = 0;
         var connectionsSkipped = 0;
@@ -138,7 +132,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         {
             // Progress update every 1000 connections
             if (connectionsEvaluated % 1000 == 0)
-                Console.WriteLine($"[CSA] Scan progress: {connectionsEvaluated}/{connections.Count} connections evaluated, {connectionsBoarded} boarded, {journeys.Count} journeys found");
+                Console.WriteLine($"[CSA] Scan progress: {connectionsEvaluated}/{connections.Count} connections evaluated, {connectionsBoarded} boarded");
 
             connectionsEvaluated++;
 
@@ -164,7 +158,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 
             // Capture the exact predecessor chain
             bestConnection.TryGetValue(conn.FromStationId, out var prevConn);
-            conn.Previous = prevConn;
+            predecessors[conn] = prevConn;
 
             // We can board! Update best arrival and connection
             bestArrival[conn.ToStationId] = conn.ArrivalTime;
@@ -172,59 +166,37 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 
             connectionsBoarded++;
             Console.WriteLine($"[CSA] Boarded connection: {conn.TrainName} {conn.FromStationId}@{conn.DepartureTime:HH:mm} -> {conn.ToStationId}@{conn.ArrivalTime:HH:mm}");
-
-            // Early exit: if we reached destination with acceptable transfers, record it
-            if (conn.ToStationId == toStationId)
-            {
-                var journey = ReconstructJourney(conn);
-                Console.WriteLine($"[CSA] Reached destination with {journey.Transfers} transfers");
-
-                if (journey.Transfers <= MaxTransfers)
-                {
-                    journeys.Add(journey);
-                    Console.WriteLine($"[CSA] Journey recorded (total: {journeys.Count})");
-
-                    if (journeys.Count >= MaxResults)
-                    {
-                        Console.WriteLine($"[CSA] Found {MaxResults} results, stopping early");
-                        break; // Found enough results
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"[CSA] Journey has {journey.Transfers} transfers (max: {MaxTransfers}), skipping");
-                }
-            }
         }
 
-        Console.WriteLine($"[CSA] Phase 3 complete: evaluated {connectionsEvaluated}, boarded {connectionsBoarded}, skipped {connectionsSkipped}, found {journeys.Count} journeys");
+        Console.WriteLine($"[CSA] Phase 3 complete: evaluated {connectionsEvaluated}, boarded {connectionsBoarded}, skipped {connectionsSkipped}");
 
-        // Phase 4: Convert journeys to trips
-        Console.WriteLine($"[CSA] Phase 4: Building {journeys.Count} trips...");
-        var results = journeys
-            .Select(j => BuildTrip(j))
-            .Where(t => t is not null)
-            .Cast<MultiSegmentTrip>()
-            .OrderBy(t => t.TotalDuration)
-            .ThenBy(t => t.Transfers)
-            .Take(MaxResults)
-            .ToList();
+        // Reconstruct the earliest-arrival journey
+        if (!bestConnection.TryGetValue(toStationId, out var finalConn))
+        {
+            Console.WriteLine($"[CSA] No path found to destination");
+            sw.Stop();
+            Console.WriteLine($"[CSA] Complete: returned 0 results in {sw.ElapsedMilliseconds}ms");
+            return [];
+        }
+
+        var journey = ReconstructJourney(finalConn, predecessors);
+        var trip = BuildTrip(journey);
 
         sw.Stop();
-        Console.WriteLine($"[CSA] Complete: returned {results.Count} results in {sw.ElapsedMilliseconds}ms");
+        Console.WriteLine($"[CSA] Complete: returned {(trip is not null ? 1 : 0)} results in {sw.ElapsedMilliseconds}ms");
 
-        return results;
+        return trip is not null ? [trip] : [];
     }
 
     /// <summary>
-    /// Reconstructs the journey by walking backwards through Connection.Previous pointers.
+    /// Reconstructs the journey by walking backwards through the predecessors mapping.
     /// </summary>
-    private static Journey ReconstructJourney(Connection finalConnection)
+    private static Journey ReconstructJourney(Connection finalConnection, Dictionary<Connection, Connection?> predecessors)
     {
         var path = new List<Connection>();
 
         // Walk backwards from final connection to origin
-        for (var c = finalConnection; c != null; c = c.Previous)
+        for (var c = finalConnection; c != null; c = predecessors.TryGetValue(c, out var prev) ? prev : null)
             path.Add(c);
 
         // Reverse to get chronological order

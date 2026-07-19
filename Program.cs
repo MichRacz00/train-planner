@@ -21,7 +21,7 @@ builder.Services.AddHttpClient("PlkApi", (sp, client) =>
 });
 
 builder.Services.AddScoped<IPlkTripService, PlkTripService>();
-builder.Services.AddScoped<TripService>(); // TODO: remove once UI migrated to IPlkTripService
+
 
 var app = builder.Build();
 

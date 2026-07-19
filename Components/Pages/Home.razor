@@ -2,7 +2,7 @@
 @rendermode InteractiveServer
 @using train_planner.Models
 @using train_planner.Services
-@inject TripService TripService
+@inject IPlkTripService TripService
 
 <PageTitle>Train Planner</PageTitle>
 
@@ -212,56 +212,68 @@
 }
 
 @code {
-    private TripSearchParams SearchParams { get; set; } = new()
+    // Shim: satisfies all existing markup bindings (FromStation, ToStation,
+    // Passengers, TravelDate) without any markup changes.
+    private class SearchState
     {
-        FromStation = "33605", // Warszawa Centralna
-        ToStation = "80416",   // Kraków Główny
-        TravelDate = DateOnly.FromDateTime(DateTime.Today),
-        Passengers = 1
-    };
+        public string   FromStation { get; set; } = "33605";  // Warszawa Centralna
+        public string   ToStation   { get; set; } = "80416";  // Kraków Główny
+        public DateOnly TravelDate  { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public int      Passengers  { get; set; } = 1;        // UI only; not sent to API
 
-    private IReadOnlyList<Station> AllStations { get; set; } = [];
-    private List<TripResult> TripResults { get; set; } = [];
-    private bool HasSearched { get; set; } = false;
-    private bool IsSearching { get; set; } = false;
-    private string? ValidationMessage { get; set; }
-    private TripResult? SelectedTrip { get; set; }
+        public int FromStationId => int.TryParse(FromStation, out var v) ? v : 0;
+        public int ToStationId   => int.TryParse(ToStation,   out var v) ? v : 0;
+    }
 
-    protected override void OnInitialized()
+    private SearchState SearchParams { get; set; } = new();
+
+    private IReadOnlyList<PlkStation>  AllStations       { get; set; } = [];
+    private List<ScheduledTrip>        TripResults       { get; set; } = [];
+    private bool                       HasSearched       { get; set; } = false;
+    private bool                       IsSearching       { get; set; } = false;
+    private string?                    ValidationMessage { get; set; }
+    private ScheduledTrip?             SelectedTrip      { get; set; }
+
+    protected override async Task OnInitializedAsync()
     {
-        AllStations = TripService.GetStations();
+        AllStations = await TripService.GetStationsAsync();
     }
 
     private async Task SearchTrips()
     {
         ValidationMessage = null;
 
-        if (string.IsNullOrEmpty(SearchParams.FromStation))
+        if (SearchParams.FromStationId == 0)
         {
             ValidationMessage = "Please select a departure station.";
             return;
         }
-        if (string.IsNullOrEmpty(SearchParams.ToStation))
+        if (SearchParams.ToStationId == 0)
         {
             ValidationMessage = "Please select an arrival station.";
             return;
         }
-        if (SearchParams.FromStation == SearchParams.ToStation)
+        if (SearchParams.FromStationId == SearchParams.ToStationId)
         {
             ValidationMessage = "Departure and arrival stations must be different.";
             return;
         }
 
         IsSearching = true;
-        await Task.Delay(600); // simulate network latency
-        TripResults = await TripService.SearchTripsAsync(SearchParams);
+        TripResults = await TripService.SearchTripsAsync(new PlkTripSearchParams
+        {
+            FromStationId = SearchParams.FromStationId,
+            ToStationId   = SearchParams.ToStationId,
+            TravelDate    = SearchParams.TravelDate,
+        });
         HasSearched = true;
         IsSearching = false;
     }
 
     private void SwapStations()
     {
-        (SearchParams.FromStation, SearchParams.ToStation) = (SearchParams.ToStation, SearchParams.FromStation);
+        (SearchParams.FromStation, SearchParams.ToStation) =
+            (SearchParams.ToStation, SearchParams.FromStation);
     }
 
     private void OnDateChanged(ChangeEventArgs e)
@@ -277,37 +289,28 @@
     {
         TrainType.HighSpeed => "High Speed",
         TrainType.InterCity => "InterCity",
-        TrainType.Regional => "Regional",
-        TrainType.Night => "Night Train",
-        _ => type.ToString()
+        TrainType.Regional  => "Regional",
+        TrainType.Night     => "Night Train",
+        _                   => type.ToString()
     };
 
     private static string GetAmenityIcon(string amenity) => amenity switch
     {
-        "WiFi" => "📶",
-        "Bistro" => "🍽️",
+        "WiFi"          => "📶",
+        "Bistro"        => "🍽️",
         "Power outlets" => "🔌",
-        "First class" => "⭐",
-        "Quiet zone" => "🤫",
-        _ => "•"
+        "First class"   => "⭐",
+        "Quiet zone"    => "🤫",
+        _               => "•"
     };
 
-    private void SelectTrip(TripResult trip)
-    {
-        SelectedTrip = trip;
-    }
-
-    private void CloseModal()
-    {
-        SelectedTrip = null;
-    }
-
+    private void SelectTrip(ScheduledTrip trip) { SelectedTrip = trip; }
+    private void CloseModal()                   { SelectedTrip = null; }
     private void ConfirmBooking()
     {
-        // Stub: in a real app this would call a booking API
-        SelectedTrip = null;
-        HasSearched = false;
-        TripResults = [];
+        SelectedTrip      = null;
+        HasSearched       = false;
+        TripResults       = [];
         ValidationMessage = null;
     }
 }

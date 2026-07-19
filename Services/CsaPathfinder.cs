@@ -81,18 +81,17 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
     public async Task<IReadOnlyList<MultiSegmentTrip>> FindTripsAsync(
         int fromStationId, int toStationId, DateOnly travelDate, CancellationToken ct = default)
     {
-        // Phase 1: Load all route data for the date
-        var routeIds = await _tripService.GetAllRouteIdsAsync(travelDate);
+        // Phase 1: Load all route data for the date (single API call)
+        var routes = await _tripService.GetAllRoutesAsync(travelDate);
 
         var allRoutes = new List<RouteData>();
         var routesByStation = new Dictionary<int, List<RouteData>>();
 
-        foreach (var id in routeIds)
+        foreach (var route in routes)
         {
             ct.ThrowIfCancellationRequested();
 
-            var route = await _tripService.GetRouteDetailsAsync(id.ScheduleId, id.OrderId);
-            if (route is null || route.Stations is not { Count: >= 2 })
+            if (route.Stations is not { Count: >= 2 })
                 continue;
 
             if (!OperatesOnDate(route, travelDate))

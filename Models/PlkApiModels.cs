@@ -141,16 +141,6 @@ public record PlkCarrierUsageInfo(
     [property: JsonPropertyName("description")] string? Description,
     [property: JsonPropertyName("examples")] List<string>? Examples);
 
-// ── GET /api/v1/schedules/routes/{date} ─────────────────────────────────────────
-
-public record PlkRoutesListResponse(
-    [property: JsonPropertyName("routes")] List<PlkRouteIdDto>? Routes,
-    [property: JsonPropertyName("totalCount")] int TotalCount);
-
-public record PlkRouteIdDto(
-    [property: JsonPropertyName("scheduleId")] int ScheduleId,
-    [property: JsonPropertyName("orderId")] int OrderId);
-
 // ── Error response ─────────────────────────────────────────────────────────────
 
 public record PlkApiError(

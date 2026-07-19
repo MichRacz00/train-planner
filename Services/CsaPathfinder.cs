@@ -52,31 +52,15 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         public string? ArrivalPlatform => dto.ArrivalPlatform;
     }
 
-    // Scan state in the priority queue
-    private sealed class ScanState
-    {
-        public int CurrentStationId { get; }
-        public TimeOnly CurrentTime { get; }
-        public RouteData Route { get; }
-        public int NextStopIndex { get; }
-        public int TransfersUsed { get; }
-        public List<TripSegment> Segments { get; }
-        public TimeOnly SegmentStart { get; }
-        public int SegmentStartStation { get; }
-
-        public ScanState(int stationId, TimeOnly time, RouteData route, int nextIndex,
-            int transfers, List<TripSegment> segments, TimeOnly segStart, int segStartStation)
-        {
-            CurrentStationId = stationId;
-            CurrentTime = time;
-            Route = route;
-            NextStopIndex = nextIndex;
-            TransfersUsed = transfers;
-            Segments = segments;
-            SegmentStart = segStart;
-            SegmentStartStation = segStartStation;
-        }
-    }
+    // A single ride on a train: board at boardStopIndex, alight at alightStopIndex
+    private sealed record Ride(
+        RouteData Route,
+        int BoardStopIndex,
+        int AlightStopIndex,
+        TimeOnly BoardTime,
+        TimeOnly AlightTime,
+        int TransfersUsed,
+        List<Ride> PreviousRides);
 
     public async Task<IReadOnlyList<MultiSegmentTrip>> FindTripsAsync(
         int fromStationId, int toStationId, DateOnly travelDate, CancellationToken ct = default)
@@ -84,7 +68,6 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         // Phase 1: Load all route data for the date (single API call)
         var routes = await _tripService.GetAllRoutesAsync(travelDate);
 
-        var allRoutes = new List<RouteData>();
         var routesByStation = new Dictionary<int, List<RouteData>>();
 
         foreach (var route in routes)
@@ -101,8 +84,6 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             if (data.Stops.Length < 2)
                 continue;
 
-            allRoutes.Add(data);
-
             foreach (var stop in data.Stops)
             {
                 if (!routesByStation.TryGetValue(stop.StationId, out var list))
@@ -114,14 +95,16 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             }
         }
 
+        // Phase 2: CSA scan
+        // Priority queue: items ordered by arrival time at current station
+        // Each item: "I arrived at station X at time T on route R, boarded at stopIndex B"
+        var pq = new PriorityQueue<(int StationId, TimeOnly ArriveTime, RouteData Route,
+            int BoardStopIndex, int TransfersUsed, List<Ride> PreviousRides), TimeOnly>();
 
+        var bestArrival = new Dictionary<int, TimeOnly>();
+        var results = new List<List<Ride>>();
 
-        // Phase 2: CSA scan using priority queue (min-heap on arrival time)
-        var pq = new PriorityQueue<ScanState, TimeOnly>();
-        var earliestArrival = new Dictionary<int, TimeOnly>();
-        var results = new List<MultiSegmentTrip>();
-
-        // Seed: enqueue all departures from origin
+        // Seed: board every train departing from origin
         if (routesByStation.TryGetValue(fromStationId, out var originRoutes))
         {
             foreach (var route in originRoutes)
@@ -133,137 +116,108 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
                     if (stop.Departure is not { } depTime) continue;
                     if (i + 1 >= route.Stops.Length) continue;
 
-                    var segments = new List<TripSegment>();
-                    var state = new ScanState(
-                        fromStationId, depTime, route, i + 1, 0,
-                        segments, depTime, fromStationId);
-                    pq.Enqueue(state, depTime);
-                    break; // First departure stop for this route at origin
+                    pq.Enqueue((fromStationId, depTime, route, i, 0, []), depTime);
+                    break; // Only first departure from origin per route
                 }
             }
         }
 
         // Phase 3: Scan loop
-        while (pq.Count > 0 && results.Count < MaxResults)
+        while (pq.Count > 0 && results.Count < MaxResults * 4)
         {
-            var current = pq.Dequeue();
+            var (stationId, arriveTime, route, boardStopIndex, transfersUsed, prevRides) = pq.Dequeue();
 
-            // Prune dominated paths
-            if (earliestArrival.TryGetValue(current.CurrentStationId, out var best) &&
-                current.CurrentTime >= best)
-                continue;
-
-            earliestArrival[current.CurrentStationId] = current.CurrentTime;
-
-            // Advance to next stop on current train
-            if (current.NextStopIndex < current.Route.Stops.Length)
+            // Ride the train forward stop by stop
+            for (var si = boardStopIndex + 1; si < route.Stops.Length; si++)
             {
-                var nextStop = current.Route.Stops[current.NextStopIndex];
+                var stop = route.Stops[si];
+                if (stop.Arrival is not { } arrTime) continue;
 
-                if (nextStop.Arrival is { } arrTime)
+                // Prune: if we already reached this station earlier, skip
+                if (bestArrival.TryGetValue(stop.StationId, out var best) && arrTime >= best)
+                    continue;
+
+                bestArrival[stop.StationId] = arrTime;
+
+                // Record the completed ride
+                var ride = new Ride(route, boardStopIndex, si, arriveTime, arrTime,
+                    transfersUsed, prevRides);
+
+                if (stop.StationId == toStationId)
                 {
-                    // Build segment from where we boarded to this stop
-                    var segment = new TripSegment(
-                        current.Route.ScheduleId,
-                        current.Route.OrderId,
-                        current.Route.TrainName,
-                        current.Route.CarrierCode,
-                        current.Route.CommercialCategory,
-                        new PlkStation(current.SegmentStartStation, "", ""),
-                        new PlkStation(nextStop.StationId, "", ""),
-                        current.SegmentStart,
-                        arrTime,
-                        GetDeparturePlatform(current.Route, current.SegmentStartStation),
-                        nextStop.ArrivalPlatform);
+                    var completedPath = new List<Ride>(prevRides) { ride };
+                    results.Add(completedPath);
+                    continue; // Don't transfer at destination
+                }
 
-                    var newSegments = new List<TripSegment>(current.Segments) { segment };
+                // Try transfers at this station
+                if (transfersUsed < MaxTransfers &&
+                    routesByStation.TryGetValue(stop.StationId, out var transferRoutes))
+                {
+                    var earliestDeparture = arrTime.Add(MinTransferTime);
 
-                    if (nextStop.StationId == toStationId)
+                    foreach (var tr in transferRoutes)
                     {
-                        var trip = AssembleTrip(newSegments);
-                        if (trip is not null)
-                            results.Add(trip);
-                        continue;
-                    }
+                        if (tr.ScheduleId == route.ScheduleId && tr.OrderId == route.OrderId)
+                            continue;
 
-                    // Continue on same train
-                    if (current.NextStopIndex + 1 < current.Route.Stops.Length)
-                    {
-                        var followingStop = current.Route.Stops[current.NextStopIndex + 1];
-                        if (followingStop.Departure is { } nextDep)
+                        for (var j = 0; j < tr.Stops.Length; j++)
                         {
-                            var contState = new ScanState(
-                                nextStop.StationId, arrTime, current.Route,
-                                current.NextStopIndex + 1, current.TransfersUsed,
-                                newSegments, nextDep, nextStop.StationId);
-                            pq.Enqueue(contState, nextDep);
-                        }
-                    }
+                            var tStop = tr.Stops[j];
+                            if (tStop.StationId != stop.StationId) continue;
+                            if (tStop.Departure is not { } trDep) continue;
+                            if (trDep < earliestDeparture) continue;
+                            if (j + 1 >= tr.Stops.Length) continue;
 
-                    // Try transfers at this station
-                    if (current.TransfersUsed < MaxTransfers &&
-                        routesByStation.TryGetValue(nextStop.StationId, out var transferRoutes))
-                    {
-                        var earliestDeparture = arrTime.Add(MinTransferTime);
-
-                        foreach (var tr in transferRoutes)
-                        {
-                            if (tr.ScheduleId == current.Route.ScheduleId &&
-                                tr.OrderId == current.Route.OrderId)
-                                continue;
-
-                            for (var j = 0; j < tr.Stops.Length; j++)
-                            {
-                                var tStop = tr.Stops[j];
-                                if (tStop.StationId != nextStop.StationId) continue;
-                                if (tStop.Departure is not { } trDep) continue;
-                                if (trDep < earliestDeparture) continue;
-                                if (j + 1 >= tr.Stops.Length) continue;
-
-                                var transferState = new ScanState(
-                                    nextStop.StationId, trDep, tr, j + 1,
-                                    current.TransfersUsed + 1, newSegments,
-                                    trDep, nextStop.StationId);
-                                pq.Enqueue(transferState, trDep);
-                                break;
-                            }
+                            var newPrev = new List<Ride>(prevRides) { ride };
+                            pq.Enqueue((stop.StationId, trDep, tr, j, transfersUsed + 1, newPrev), trDep);
+                            break;
                         }
                     }
                 }
             }
         }
 
-        return results
+        // Phase 4: Assemble results
+        var trips = new List<MultiSegmentTrip>();
+        foreach (var path in results)
+        {
+            var trip = BuildTrip(path);
+            if (trip is not null)
+                trips.Add(trip);
+        }
+
+        return trips
             .OrderBy(t => t.TotalDuration)
             .ThenBy(t => t.Transfers)
             .Take(MaxResults)
             .ToArray();
     }
 
-    private static string? GetDeparturePlatform(RouteData route, int stationId)
+    private static MultiSegmentTrip? BuildTrip(List<Ride> rides)
     {
-        var stop = route.Stops.FirstOrDefault(s => s.StationId == stationId);
-        return stop?.DeparturePlatform;
-    }
+        if (rides.Count == 0) return null;
 
-    private static bool OperatesOnDate(PlkRouteDto route, DateOnly date)
-    {
-        var dates = route.OperatingDates;
-        if (dates is null || dates.Count == 0)
-            return true;
-        return dates.Contains(date);
-    }
+        var segments = new List<TripSegment>();
+        foreach (var ride in rides)
+        {
+            var boardStop = ride.Route.Stops[ride.BoardStopIndex];
+            var alightStop = ride.Route.Stops[ride.AlightStopIndex];
 
-    private static TimeOnly? TryParse(string? raw)
-    {
-        if (string.IsNullOrEmpty(raw)) return null;
-        if (TimeOnly.TryParse(raw, out var t)) return t;
-        if (TimeSpan.TryParse(raw, out var ts)) return TimeOnly.FromTimeSpan(ts);
-        return null;
-    }
+            segments.Add(new TripSegment(
+                ride.Route.ScheduleId,
+                ride.Route.OrderId,
+                ride.Route.TrainName,
+                ride.Route.CarrierCode,
+                ride.Route.CommercialCategory,
+                new PlkStation(boardStop.StationId, "", ""),
+                new PlkStation(alightStop.StationId, "", ""),
+                ride.BoardTime,
+                ride.AlightTime,
+                boardStop.DeparturePlatform,
+                alightStop.ArrivalPlatform));
+        }
 
-    private static MultiSegmentTrip? AssembleTrip(List<TripSegment> segments)
-    {
         if (segments.Count == 0) return null;
 
         var departure = segments[0].PlannedDeparture;
@@ -284,5 +238,21 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 
         return new MultiSegmentTrip(
             segments, departure, arrival, segments.Count - 1, totalDuration, transferTime);
+    }
+
+    private static bool OperatesOnDate(PlkRouteDto route, DateOnly date)
+    {
+        var dates = route.OperatingDates;
+        if (dates is null || dates.Count == 0)
+            return true;
+        return dates.Contains(date);
+    }
+
+    private static TimeOnly? TryParse(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return null;
+        if (TimeOnly.TryParse(raw, out var t)) return t;
+        if (TimeSpan.TryParse(raw, out var ts)) return TimeOnly.FromTimeSpan(ts);
+        return null;
     }
 }

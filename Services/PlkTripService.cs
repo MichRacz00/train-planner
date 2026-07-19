@@ -1,6 +1,5 @@
-using System.Net.Http.Json;
+using System.Text.Json;
 using System.Xml;
-using Microsoft.Extensions.Options;
 using train_planner.Models;
 
 namespace train_planner.Services;
@@ -28,20 +27,24 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
 
         var stationsParam = $"{searchParams.FromStationId},{searchParams.ToStationId}";
 
-        // 1. Fetch scheduled routes for the date
+        // 1. Fetch scheduled routes for the date — directional filter
         var scheduleUrl = $"/api/v1/schedules?dateFrom={date}&dateTo={date}"
-                        + $"&stations={stationsParam}";
-        var scheduleResp = await client.GetFromJsonAsync<PlkScheduleResponse>(scheduleUrl);
+                        + $"&fromStations={searchParams.FromStationId}&toStations={searchParams.ToStationId}";
+        var scheduleRaw = await client.GetStringAsync(scheduleUrl);
+        var scheduleResp = JsonSerializer.Deserialize<PlkScheduleResponse>(scheduleRaw);
 
         if (scheduleResp?.Routes is not { Count: > 0 } routes)
             return [];
 
         // 2. Fetch real-time operations for same stations
-        var opsUrl = $"/api/v1/operations?stations={stationsParam}&withPlanned=true";
-        var opsResp = await client.GetFromJsonAsync<PlkOperationResponse>(opsUrl);
+        var opsUrl = $"/api/v1/operations?stations={searchParams.FromStationId},{searchParams.ToStationId}&withPlanned=true";
+        var opsRaw = await client.GetStringAsync(opsUrl);
+        var opsResp = JsonSerializer.Deserialize<PlkOperationResponse>(opsRaw);
 
+        // GroupBy handles duplicate (ScheduleId, OrderId) pairs the API may return
         var opsLookup = (opsResp?.Trains ?? [])
-            .ToDictionary(t => (t.ScheduleId, t.OrderId));
+            .GroupBy(t => (t.ScheduleId, t.OrderId))
+            .ToDictionary(g => g.Key, g => g.First());
 
         var stationNames = scheduleResp.Dictionaries?.Stations
                            ?? new Dictionary<string, PlkStationDictionaryDto>();

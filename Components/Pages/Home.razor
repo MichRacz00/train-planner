@@ -3,6 +3,7 @@
 @using train_planner.Models
 @using train_planner.Services
 @inject IPlkTripService TripService
+@inject ITripPathfinder TripPathfinder
 
 <PageTitle>Train Planner</PageTitle>
 
@@ -68,6 +69,14 @@
                        @bind="SearchParams.Passengers" />
             </div>
 
+            <div class="tp-search-field tp-search-field--xnarrow tp-transfer-toggle">
+                <label class="tp-label" for="include-transfers">
+                    <span class="tp-label-icon">&#x1F500;</span> Transfers
+                </label>
+                <input id="include-transfers" type="checkbox" class="tp-checkbox"
+                       @bind="IncludeTransfers" />
+            </div>
+
             <button class="tp-search-btn" @onclick="SearchTrips" disabled="@IsSearching">
                 @if (IsSearching)
                 {
@@ -123,8 +132,8 @@
             <div class="tp-results-list">
                 @foreach (var trip in TripResults)
                 {
-                    <div class="tp-trip-card @(SelectedTrip?.ScheduleId == trip.ScheduleId && SelectedTrip?.OrderId == trip.OrderId ? "tp-trip-card--selected" : "")"
-                         @onclick="() => SelectTrip(trip)">
+                    <div class="tp-trip-card @(SelectedTripId == trip.Id ? "tp-trip-card--selected" : "")"
+                         @onclick="() => SelectTrip(trip.Id)">
                         <div class="tp-card-content">
                             <div class="tp-trip-header">
                                 <div class="tp-trip-times">
@@ -138,34 +147,43 @@
 
                                 <div class="tp-trip-price">
                                     <div class="tp-price-block">
-                                        <span class="tp-price-amount">@((trip.PricePerPerson * SearchParams.Passengers).ToString("C0", new System.Globalization.CultureInfo("da-DK")))</span>
-                                        @if (SearchParams.Passengers > 1)
+                                        <span class="tp-price-amount">@trip.Duration.ToString(@"hh\:mm")</span>
+                                        @if (trip.Transfers > 0)
                                         {
-                                            <span class="tp-price-per-person">@trip.PricePerPerson.ToString("C0", new System.Globalization.CultureInfo("da-DK")) / person</span>
+                                            <span class="tp-price-per-person">@trip.Transfers transfer@(trip.Transfers > 1 ? "s" : "")</span>
                                         }
                                     </div>
-                                    <button class="tp-book-btn" @onclick="() => SelectTrip(trip)">
+                                    <button class="tp-book-btn" @onclick="() => SelectTrip(trip.Id)">
                                         Select
                                     </button>
                                 </div>
                             </div>
 
-                            <div class="tp-trip-segments">
-                                @for (int i = 0; i < trip.Segments.Count; i++)
-                                {
-                                    var seg = trip.Segments[i];
-                                    <span class="tp-segment">
+                            @foreach (var seg in trip.Segments)
+                            {
+                                <div class="tp-segment-row">
+                                    <div class="tp-segment-stations">
+                                        <span class="tp-segment-time">@seg.Departure.ToString("HH:mm")</span>
+                                        <span class="tp-segment-name">@GetStationName(seg.FromStationId)</span>
+                                    </div>
+                                    <div class="tp-segment-line">
                                         <svg class="tp-train-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="23" viewBox="0 0 15 23"><path d="M7.492,0C3.221,0,0,1.478,0,3.438V15.961a.426.426,0,0,0,.013.062.433.433,0,0,0,.02.1.451.451,0,0,0,.047.093.568.568,0,0,0,.028.055L2.1,18.788a.5.5,0,0,0,.392.19H4.285L2.139,21.124h0l-1,1a.5.5,0,0,0,.707.708l.854-.854h9.586l.853.854a.5.5,0,1,0,.707-.708l-1-1h0L10.7,18.978h1.793a.5.5,0,0,0,.392-.19l1.992-2.517a.568.568,0,0,0,.028-.055.507.507,0,0,0,.047-.093.433.433,0,0,0,.02-.1.426.426,0,0,0,.013-.062V3.438C14.984,1.478,11.763,0,7.492,0Zm6.492,15.338c-.488.254-2.676.661-6.492.661s-6-.407-6.492-.661V6.177L2.443,10a.5.5,0,0,0,.134.2,8.153,8.153,0,0,0,4.947,2.051,8.139,8.139,0,0,0,4.883-2.051.509.509,0,0,0,.134-.2l1.443-3.821ZM7.492,1c3.737,0,6.368,1.226,6.487,2.358l-2.33,6.169a7.115,7.115,0,0,1-4.125,1.718,7.133,7.133,0,0,1-4.19-1.718L1.224,3.938H11.992a.5.5,0,0,0,0-1H1.161C1.789,1.943,4.215,1,7.492,1Zm3.793,19.978H3.7l2-2H9.285Zm.965-3H2.734L1.605,16.552A29.531,29.531,0,0,0,7.492,17a29.538,29.538,0,0,0,5.887-.447Z"></path><circle cx="2.992" cy="12.978" r="1"></circle><circle cx="11.992" cy="12.978" r="1"></circle></svg>
-                                        @GetTrainTypeLabel(seg.TrainType) 
-                                        <svg class="tp-platform-icon" xmlns="http://www.w3.org/2000/svg" width="14px" height="14px" viewBox="0 0 14 14"><path d="M14,14H0V3H3V0H14ZM1,13H13V1H4V4H1Z"></path></svg>
-                                        @seg.Platform
-                                    </span>
-                                    @if (i < trip.Segments.Count - 1)
-                                    {
-                                        <span class="tp-segment-plus">+</span>
-                                    }
-                                }
-                            </div>
+                                        <span class="tp-train-name">@seg.TrainName</span>
+                                        <span class="tp-platform-badge">@seg.Platform</span>
+                                    </div>
+                                    <div class="tp-segment-stations">
+                                        <span class="tp-segment-name">@GetStationName(seg.ToStationId)</span>
+                                        <span class="tp-segment-time">@seg.Arrival.ToString("HH:mm")</span>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (trip.TransferTimes.Count > 0)
+                            {
+                                <div class="tp-transfer-info">
+                                    Total transfer time: @FormatTransferTime(trip.TransferTimes)
+                                </div>
+                            }
                         </div>
                     </div>
                 }
@@ -175,27 +193,43 @@
 }
 
 @code {
-    // Shim: satisfies all existing markup bindings (FromStation, ToStation,
-    // Passengers, TravelDate) without any markup changes.
     private class SearchState
     {
-        public string   FromStation { get; set; } = "33605";  // Warszawa Centralna
-        public string   ToStation   { get; set; } = "80416";  // Kraków Główny
+        public string   FromStation { get; set; } = "33605";
+        public string   ToStation   { get; set; } = "80416";
         public DateOnly TravelDate  { get; set; } = DateOnly.FromDateTime(DateTime.Today);
-        public int      Passengers  { get; set; } = 1;        // UI only; not sent to API
+        public int      Passengers  { get; set; } = 1;
 
         public int FromStationId => int.TryParse(FromStation, out var v) ? v : 0;
         public int ToStationId   => int.TryParse(ToStation,   out var v) ? v : 0;
     }
 
+    private record DisplaySegment(
+        string TrainName,
+        string Platform,
+        TimeOnly Departure,
+        TimeOnly Arrival,
+        string FromStationId,
+        string ToStationId);
+
+    private record DisplayTrip(
+        string Id,
+        TimeOnly Departure,
+        TimeOnly Arrival,
+        TimeSpan Duration,
+        int Transfers,
+        IReadOnlyList<DisplaySegment> Segments,
+        IReadOnlyList<TimeSpan> TransferTimes);
+
     private SearchState SearchParams { get; set; } = new();
 
     private IReadOnlyList<PlkStation>  AllStations       { get; set; } = [];
-    private List<ScheduledTrip>        TripResults       { get; set; } = [];
+    private List<DisplayTrip>          TripResults       { get; set; } = [];
     private bool                       HasSearched       { get; set; } = false;
     private bool                       IsSearching       { get; set; } = false;
+    private bool                       IncludeTransfers  { get; set; } = false;
     private string?                    ValidationMessage { get; set; }
-    private ScheduledTrip?             SelectedTrip      { get; set; }
+    private string?                    SelectedTripId    { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -223,15 +257,84 @@
         }
 
         IsSearching = true;
-        TripResults = await TripService.SearchTripsAsync(new PlkTripSearchParams
+
+        if (IncludeTransfers)
         {
-            FromStationId = SearchParams.FromStationId,
-            ToStationId   = SearchParams.ToStationId,
-            TravelDate    = SearchParams.TravelDate,
-        });
+            var multiSegmentTrips = await TripPathfinder.FindTripsAsync(
+                SearchParams.FromStationId, SearchParams.ToStationId, SearchParams.TravelDate);
+
+            TripResults = multiSegmentTrips.Select(m => ToDisplayTrip(m)).ToList();
+        }
+        else
+        {
+            var directTrips = await TripService.SearchTripsAsync(new PlkTripSearchParams
+            {
+                FromStationId = SearchParams.FromStationId,
+                ToStationId   = SearchParams.ToStationId,
+                TravelDate    = SearchParams.TravelDate,
+            });
+
+            TripResults = directTrips.Select(t => ToDisplayTrip(t)).ToList();
+        }
+
         HasSearched = true;
         IsSearching = false;
-        SelectedTrip = BestTrip(TripResults);
+
+        if (TripResults.Count > 0)
+        {
+            var now = TimeOnly.FromDateTime(DateTime.Now);
+            SelectedTripId = TripResults.FirstOrDefault(t => t.Departure >= now)?.Id
+                            ?? TripResults[^1].Id;
+        }
+    }
+
+    private static DisplayTrip ToDisplayTrip(ScheduledTrip trip)
+    {
+        var seg = new DisplaySegment(
+            trip.TrainName,
+            trip.DeparturePlatform ?? "",
+            trip.PlannedDeparture,
+            trip.PlannedArrival,
+            trip.From.Code,
+            trip.To.Code);
+
+        return new DisplayTrip(
+            $"S-{trip.ScheduleId}-{trip.OrderId}",
+            trip.PlannedDeparture,
+            trip.PlannedArrival,
+            trip.PlannedDuration,
+            0,
+            [seg],
+            []);
+    }
+
+    private static DisplayTrip ToDisplayTrip(MultiSegmentTrip trip)
+    {
+        var segments = trip.Segments.Select(s => new DisplaySegment(
+            s.TrainName,
+            s.DeparturePlatform ?? "",
+            s.PlannedDeparture,
+            s.PlannedArrival,
+            s.From.Code,
+            s.To.Code)).ToArray();
+
+        var transferTimes = new List<TimeSpan>();
+        for (var i = 1; i < trip.Segments.Count; i++)
+        {
+            var gap = trip.Segments[i].PlannedDeparture > trip.Segments[i - 1].PlannedArrival
+                ? trip.Segments[i].PlannedDeparture - trip.Segments[i - 1].PlannedArrival
+                : TimeSpan.FromHours(24) - (trip.Segments[i - 1].PlannedArrival - trip.Segments[i].PlannedDeparture);
+            transferTimes.Add(gap);
+        }
+
+        return new DisplayTrip(
+            $"M-{trip.Segments[0].ScheduleId}-{trip.Segments[0].OrderId}",
+            trip.DepartureTime,
+            trip.ArrivalTime,
+            trip.TotalDuration,
+            trip.Transfers,
+            segments,
+            transferTimes);
     }
 
     private void SwapStations()
@@ -249,34 +352,15 @@
     private string GetStationName(string code)
         => AllStations.FirstOrDefault(s => s.Code == code)?.Name ?? code;
 
-    private static string GetTrainTypeLabel(TrainType type) => type switch
+    private void SelectTrip(string id)
     {
-        TrainType.HighSpeed => "High Speed",
-        TrainType.InterCity => "InterCity",
-        TrainType.Regional  => "Regional",
-        TrainType.Night     => "Night Train",
-        _                   => type.ToString()
-    };
-
-    private static string GetAmenityIcon(string amenity) => amenity switch
-    {
-        "WiFi"          => "📶",
-        "Bistro"        => "🍽️",
-        "Power outlets" => "🔌",
-        "First class"   => "⭐",
-        "Quiet zone"    => "🤫",
-        _               => "•"
-    };
-
-    private void SelectTrip(ScheduledTrip trip)
-    {
-        SelectedTrip = SelectedTrip?.ScheduleId == trip.ScheduleId && SelectedTrip?.OrderId == trip.OrderId ? null : trip;
+        SelectedTripId = SelectedTripId == id ? null : id;
     }
-    
-    private static ScheduledTrip? BestTrip(List<ScheduledTrip> trips)
+
+    private static string FormatTransferTime(IReadOnlyList<TimeSpan> times)
     {
-        if (trips.Count == 0) return null;
-        var now = TimeOnly.FromDateTime(DateTime.Now);
-        return trips.FirstOrDefault(t => t.PlannedDeparture >= now) ?? trips[^1];
+        var total = times.Sum(t => (long)t.TotalSeconds);
+        var mins = total / 60;
+        return mins > 0 ? $"{mins}m" : $"{total % 60}s";
     }
 }

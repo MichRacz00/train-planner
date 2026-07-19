@@ -11,15 +11,46 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
         PropertyNameCaseInsensitive = true
     };
 
+    // Station list changes rarely — cache for the lifetime of the app process.
+    private static IReadOnlyList<PlkStation>? _stationsCache;
+    private static readonly SemaphoreSlim StationsSemaphore = new(1, 1);
+
     public async Task<IReadOnlyList<PlkStation>> GetStationsAsync(
         string? search = null, int pageSize = 200)
+    {
+        // Searched calls bypass the cache entirely
+        if (string.IsNullOrEmpty(search) && _stationsCache is not null)
+            return _stationsCache;
+
+        await StationsSemaphore.WaitAsync();
+        try
+        {
+            // Double-check inside the lock — another circuit may have populated it
+            if (string.IsNullOrEmpty(search) && _stationsCache is not null)
+                return _stationsCache;
+
+            var result = await FetchAllStationsAsync(search, pageSize);
+
+            if (string.IsNullOrEmpty(search))
+                _stationsCache = result;
+
+            return result;
+        }
+        finally
+        {
+            StationsSemaphore.Release();
+        }
+    }
+
+    private async Task<IReadOnlyList<PlkStation>> FetchAllStationsAsync(
+        string? search, int pageSize)
     {
         var client = CreateClient();
         var searchSuffix = string.IsNullOrEmpty(search) ? "" : $"&search={Uri.EscapeDataString(search)}";
         var all = new List<PlkStation>();
         var page = 1;
         int totalPages;
-        
+
         do
         {
             var url = $"/api/v1/dictionaries/stations?page={page}&pageSize={pageSize}{searchSuffix}";

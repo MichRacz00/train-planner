@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using train_planner.Components;
 using train_planner.Services;
 
@@ -7,7 +8,20 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddScoped<TripService>();
+// Bind PLK API config
+builder.Services.Configure<PlkApiOptions>(
+    builder.Configuration.GetSection(PlkApiOptions.SectionName));
+
+// Named HttpClient with base URL + API key header
+builder.Services.AddHttpClient("PlkApi", (sp, client) =>
+{
+    var opts = sp.GetRequiredService<IOptions<PlkApiOptions>>().Value;
+    client.BaseAddress = new Uri(opts.BaseUrl);
+    client.DefaultRequestHeaders.Add("X-API-Key", opts.ApiKey);
+});
+
+builder.Services.AddScoped<IPlkTripService, PlkTripService>();
+
 
 var app = builder.Build();
 

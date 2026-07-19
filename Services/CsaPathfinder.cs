@@ -181,12 +181,21 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             }
 
             // Is this an improvement?
-            if (labels.TryGetValue(conn.ToStationId, out var currentLabel) && conn.ArrivalTime >= currentLabel.Arrival)
+            if (labels.TryGetValue(conn.ToStationId, out var currentLabel))
             {
-                var connArrTimeOnly = ToTimeOnly(conn.ArrivalTime);
-                var labelArrTimeOnly = ToTimeOnly(currentLabel.Arrival);
-                Console.WriteLine($"[CSA] Arrival at {conn.ToStationId} at {connArrTimeOnly:HH:mm} is worse than existing {labelArrTimeOnly:HH:mm}, skipping");
-                continue; // We already have a better (earlier) arrival at destination
+                // Normalize both times to 0-86400 range (within 1 day) for comparison
+                // This handles multi-day TimeSpan values correctly
+                const long ticksPerDay = 24L * 3600L * 10_000_000L;
+                var newArrivalNormalized = new TimeSpan(conn.ArrivalTime.Ticks % ticksPerDay);
+                var currentArrivalNormalized = new TimeSpan(currentLabel.Arrival.Ticks % ticksPerDay);
+                
+                if (newArrivalNormalized >= currentArrivalNormalized)
+                {
+                    var connArrTimeOnly = ToTimeOnly(conn.ArrivalTime);
+                    var labelArrTimeOnly = ToTimeOnly(currentLabel.Arrival);
+                    Console.WriteLine($"[CSA] Arrival at {conn.ToStationId} at {connArrTimeOnly:HH:mm} is worse than existing {labelArrTimeOnly:HH:mm}, skipping");
+                    continue; // We already have a better (earlier) arrival at destination
+                }
             }
 
             // Capture the exact predecessor chain
@@ -263,7 +272,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             }
             else
             {
-                if (afterDeparture.Count < 17)
+                if (afterDeparture.Count < 4)
                 {
                     afterDeparture.Add(trip);
                     Console.WriteLine($"[CSA] Route {ToTimeOnly(journeyDepTime):HH:mm}-{trip.ArrivalTime:HH:mm} added to AFTER band");
@@ -274,7 +283,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         var results = beforeDeparture
             .Concat(afterDeparture)
             .OrderBy(t => t.DepartureTime)
-            .Take(20)
+            .Take(7)
             .ToList();
 
         sw.Stop();

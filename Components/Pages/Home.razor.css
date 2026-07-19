@@ -65,7 +65,7 @@
 .tp-select,
 .tp-input {
     height: 3rem;
-    border: 1.5px solid var(--ns-border);
+    border: 1.5px solid;
     border-radius: var(--ns-radius-md);
     padding: 0 0.875rem;
     font-size: 1rem;
@@ -79,7 +79,7 @@
 
 .tp-select:focus,
 .tp-input:focus {
-    border-color: var(--ns-blue-mid);
+    border-color: var(--ns-blue-light);
     box-shadow: 0 0 0 3px rgba(0, 80, 200, 0.15);
 }
 
@@ -88,7 +88,7 @@
     align-self: flex-end;
     width: 100%;
     height: 3rem;
-    border: 1.5px solid var(--ns-border);
+    border: 1.5px solid;
     border-radius: var(--ns-radius-md);
     background: var(--ns-bg);
     cursor: pointer;
@@ -110,7 +110,7 @@
 
 .tp-swap-btn:hover {
     background: var(--ns-blue-light);
-    border-color: var(--ns-blue-mid);
+    border-color: var(--ns-blue);
     color: var(--ns-blue);
 }
 
@@ -135,7 +135,7 @@
 }
 
 .tp-search-btn:hover:not(:disabled) {
-    background: var(--ns-yellow-hover);
+    background: var(--ns-yellow);
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
@@ -213,7 +213,7 @@
 
 .tp-results-count {
     font-size: 0.82rem;
-    color: var(--ns-blue-mid);
+    color: var(--ns-blue);
     background: var(--ns-blue-light);
     padding: 0.2rem 0.75rem;
     border-radius: var(--ns-radius-pill);
@@ -323,7 +323,7 @@
 }
 
 .tp-book-btn:hover {
-    background: var(--ns-yellow-hover);
+    background: var(--ns-yellow);
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
@@ -335,19 +335,18 @@
     gap: 0.35rem;
     background: inherit;
     cursor: pointer;
+    color: var(--ns-text-muted);
 }
 
 .tp-segment {
     font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--ns-text-muted);
+    font-weight: 300;
     white-space: nowrap;
 }
 
 .tp-segment-plus {
     font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--ns-border);
+    font-weight: 400;
 }
 
 /* No results */
@@ -357,7 +356,6 @@
     background: var(--ns-bg-white);
     border-radius: var(--ns-radius-lg);
     box-shadow: var(--ns-shadow-sm);
-    border: 1.5px solid var(--ns-border);
 }
 
 .tp-no-results-icon {
@@ -407,7 +405,6 @@
     display: block;
     width: 40px;
     height: 4px;
-    background: var(--ns-border);
     border-radius: 2px;
     margin: 0 auto 1.25rem;
 }
@@ -432,7 +429,6 @@
 }
 
 .tp-modal-close:hover {
-    background: var(--ns-border);
     color: var(--ns-text);
 }
 
@@ -458,7 +454,6 @@
 }
 
 .tp-confirmation-row--total {
-    border-top: 2px solid var(--ns-border);
     border-bottom: none;
     padding-top: 0.9rem;
     margin-top: 0.3rem;
@@ -502,13 +497,13 @@
     font-family: inherit;
 }
 
-.tp-btn-primary:hover { background: var(--ns-yellow-hover); }
+.tp-btn-primary:hover { background: var(--ns-yellow); }
 
 /* Secondary = ghost */
 .tp-btn-secondary {
     width: 100%;
     padding: 0.85rem 1.5rem;
-    border: 2px solid var(--ns-border);
+    border: 2px solid;
     border-radius: var(--ns-radius-pill);
     background: var(--ns-bg-white);
     color: var(--ns-text-mid);

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using train_planner.Models;
 
 namespace train_planner.Services;
@@ -6,219 +7,268 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 {
     private readonly IPlkTripService _tripService = tripService;
 
-    private static readonly TimeSpan MinTransferTime = TimeSpan.FromMinutes(5);
     private const int MaxTransfers = 3;
     private const int MaxResults = 20;
 
-    // Route info with pre-parsed station stops
-    private sealed class RouteData
+    // A single connection: one train segment between two stations
+    private sealed class Connection
     {
-        public int ScheduleId { get; }
-        public int OrderId { get; }
-        public string TrainName { get; }
-        public string CarrierCode { get; }
-        public string CommercialCategory { get; }
-        public StationStop[] Stops { get; }
+        public int FromStationId { get; init; }
+        public int ToStationId { get; init; }
+        public TimeOnly DepartureTime { get; init; }
+        public TimeOnly ArrivalTime { get; init; }
+        public int ScheduleId { get; init; }
+        public int OrderId { get; init; }
+        public string TrainName { get; init; } = "";
+        public string CarrierCode { get; init; } = "";
+        public string CommercialCategory { get; init; } = "";
+        public string? DeparturePlatform { get; init; }
+        public string? ArrivalPlatform { get; init; }
 
-        public RouteData(PlkRouteDto route)
-        {
-            ScheduleId = route.ScheduleId;
-            OrderId = route.OrderId;
-            TrainName = route.Name ?? route.NationalNumber ?? $"{route.CarrierCode} {route.OrderId}";
-            CarrierCode = route.CarrierCode ?? "";
-            CommercialCategory = route.CommercialCategorySymbol ?? "";
-
-            if (route.Stations is { Count: > 0 })
-            {
-                Stops = route.Stations
-                    .Where(s => s.DepartureTime is not null || s.ArrivalTime is not null)
-                    .Select((s, i) => new StationStop(s, i))
-                    .ToArray();
-            }
-            else
-            {
-                Stops = [];
-            }
-        }
+        // The exact predecessor connection in the journey chain
+        public Connection? Previous { get; set; }
     }
 
-    private sealed class StationStop(PlkStationOnRouteDto dto, int index)
-    {
-        public int StationId => dto.StationId;
-        public int Index => index;
-        public TimeOnly? Departure => TryParse(dto.DepartureTime);
-        public TimeOnly? Arrival => TryParse(dto.ArrivalTime);
-        public string? DeparturePlatform => dto.DeparturePlatform;
-        public string? ArrivalPlatform => dto.ArrivalPlatform;
-    }
-
-    // A single ride on a train: board at boardStopIndex, alight at alightStopIndex
-    private sealed record Ride(
-        RouteData Route,
-        int BoardStopIndex,
-        int AlightStopIndex,
-        TimeOnly BoardTime,
-        TimeOnly AlightTime,
-        int TransfersUsed,
-        List<Ride> PreviousRides);
+    // Journey result: list of connections taken and transfer count
+    private sealed record Journey(
+        List<Connection> Connections,
+        int Transfers);
 
     public async Task<IReadOnlyList<MultiSegmentTrip>> FindTripsAsync(
         int fromStationId, int toStationId, DateOnly travelDate, CancellationToken ct = default)
     {
-        // Phase 1: Load all route data for the date (single API call)
-        var routes = await _tripService.GetAllRoutesAsync(travelDate);
+        var sw = Stopwatch.StartNew();
+        Console.WriteLine($"[CSA] Starting search: {fromStationId} -> {toStationId} on {travelDate}");
 
-        var routesByStation = new Dictionary<int, List<RouteData>>();
+        // Phase 1: Load all routes and flatten into connections
+        Console.WriteLine($"[CSA] Phase 1: Loading routes...");
+        var routes = await _tripService.GetAllRoutesAsync(travelDate);
+        Console.WriteLine($"[CSA] Phase 1: Loaded {routes.Count} routes");
+
+        // Deduplicate routes by ScheduleId/OrderId
+        routes = routes
+            .GroupBy(r => new { r.ScheduleId, r.OrderId })
+            .Select(g => g.First())
+            .ToList();
+        Console.WriteLine($"[CSA] Phase 1: After deduplication: {routes.Count} routes");
+
+        var connections = new List<Connection>();
+        var routesProcessed = 0;
+        var routesSkipped = 0;
 
         foreach (var route in routes)
         {
             ct.ThrowIfCancellationRequested();
 
             if (route.Stations is not { Count: >= 2 })
+            {
+                routesSkipped++;
                 continue;
+            }
 
             if (!OperatesOnDate(route, travelDate))
+            {
+                routesSkipped++;
                 continue;
-
-            var data = new RouteData(route);
-            if (data.Stops.Length < 2)
-                continue;
-
-            foreach (var stop in data.Stops)
-            {
-                if (!routesByStation.TryGetValue(stop.StationId, out var list))
-                {
-                    list = new List<RouteData>();
-                    routesByStation[stop.StationId] = list;
-                }
-                list.Add(data);
             }
-        }
 
-        // Phase 2: CSA scan
-        // Priority queue: items ordered by arrival time at current station
-        // Each item: "I arrived at station X at time T on route R, boarded at stopIndex B"
-        var pq = new PriorityQueue<(int StationId, TimeOnly ArriveTime, RouteData Route,
-            int BoardStopIndex, int TransfersUsed, List<Ride> PreviousRides), TimeOnly>();
+            routesProcessed++;
 
-        var bestArrival = new Dictionary<int, TimeOnly>();
-        var results = new List<List<Ride>>();
-
-        // Seed: board every train departing from origin
-        if (routesByStation.TryGetValue(fromStationId, out var originRoutes))
-        {
-            foreach (var route in originRoutes)
+            // Flatten route into connections (one per consecutive station pair)
+            var connectionsAdded = 0;
+            for (var i = 0; i < route.Stations.Count - 1; i++)
             {
-                for (var i = 0; i < route.Stops.Length; i++)
-                {
-                    var stop = route.Stops[i];
-                    if (stop.StationId != fromStationId) continue;
-                    if (stop.Departure is not { } depTime) continue;
-                    if (i + 1 >= route.Stops.Length) continue;
+                var from = route.Stations[i];
+                var to = route.Stations[i + 1];
 
-                    pq.Enqueue((fromStationId, depTime, route, i, 0, []), depTime);
-                    break; // Only first departure from origin per route
-                }
-            }
-        }
-
-        // Phase 3: Scan loop
-        while (pq.Count > 0 && results.Count < MaxResults * 4)
-        {
-            var (stationId, arriveTime, route, boardStopIndex, transfersUsed, prevRides) = pq.Dequeue();
-
-            // Ride the train forward stop by stop
-            for (var si = boardStopIndex + 1; si < route.Stops.Length; si++)
-            {
-                var stop = route.Stops[si];
-                if (stop.Arrival is not { } arrTime) continue;
-
-                // Prune: if we already reached this station earlier, skip
-                if (bestArrival.TryGetValue(stop.StationId, out var best) && arrTime >= best)
+                if (from.DepartureTime is null || to.ArrivalTime is null)
                     continue;
 
-                bestArrival[stop.StationId] = arrTime;
+                if (!TryParseTime(from.DepartureTime, out var depTime))
+                    continue;
+                if (!TryParseTime(to.ArrivalTime, out var arrTime))
+                    continue;
 
-                // Record the completed ride
-                var ride = new Ride(route, boardStopIndex, si, arriveTime, arrTime,
-                    transfersUsed, prevRides);
-
-                if (stop.StationId == toStationId)
+                connections.Add(new Connection
                 {
-                    var completedPath = new List<Ride>(prevRides) { ride };
-                    results.Add(completedPath);
-                    continue; // Don't transfer at destination
-                }
+                    FromStationId = from.StationId,
+                    ToStationId = to.StationId,
+                    DepartureTime = depTime,
+                    ArrivalTime = arrTime,
+                    ScheduleId = route.ScheduleId,
+                    OrderId = route.OrderId,
+                    TrainName = route.Name ?? route.NationalNumber ?? $"{route.CarrierCode} {route.OrderId}",
+                    CarrierCode = route.CarrierCode ?? "",
+                    CommercialCategory = route.CommercialCategorySymbol ?? "",
+                    DeparturePlatform = from.DeparturePlatform,
+                    ArrivalPlatform = to.ArrivalPlatform
+                });
+                connectionsAdded++;
+            }
 
-                // Try transfers at this station
-                if (transfersUsed < MaxTransfers &&
-                    routesByStation.TryGetValue(stop.StationId, out var transferRoutes))
+            // Progress update every 50 routes
+            if (routesProcessed % 50 == 0)
+                Console.WriteLine($"[CSA] Progress: {routesProcessed} routes processed, {connections.Count} total connections so far");
+
+            if (connectionsAdded > 0)
+                Console.WriteLine($"[CSA] Route {route.ScheduleId}/{route.OrderId}: {connectionsAdded} connections");
+        }
+
+        Console.WriteLine($"[CSA] Phase 1 complete: {routesProcessed} routes processed, {routesSkipped} skipped, {connections.Count} total connections");
+
+        // Phase 2: Sort connections by departure time (CSA requirement)
+        Console.WriteLine($"[CSA] Phase 2: Sorting {connections.Count} connections by departure time...");
+        connections.Sort((a, b) => a.DepartureTime.CompareTo(b.DepartureTime));
+        Console.WriteLine($"[CSA] Phase 2: Sort complete");
+
+        // Phase 3: CSA scan - single pass through sorted connections
+        Console.WriteLine($"[CSA] Phase 3: Starting CSA scan...");
+        var bestArrival = new Dictionary<int, TimeOnly>();
+        var bestConnection = new Dictionary<int, Connection>();
+        var journeys = new List<Journey>();
+        var connectionsEvaluated = 0;
+        var connectionsBoarded = 0;
+        var connectionsSkipped = 0;
+
+        // Initialize: we can start at origin at any time
+        bestArrival[fromStationId] = TimeOnly.MinValue;
+        Console.WriteLine($"[CSA] Initialized arrival at station {fromStationId} at {TimeOnly.MinValue}");
+
+        foreach (var conn in connections)
+        {
+            // Progress update every 1000 connections
+            if (connectionsEvaluated % 1000 == 0)
+                Console.WriteLine($"[CSA] Scan progress: {connectionsEvaluated}/{connections.Count} connections evaluated, {connectionsBoarded} boarded, {journeys.Count} journeys found");
+
+            connectionsEvaluated++;
+
+            // Can we board this connection?
+            if (!bestArrival.TryGetValue(conn.FromStationId, out var arrivalAtFrom))
+            {
+                connectionsSkipped++;
+                continue; // We haven't reached the boarding station yet
+            }
+
+            if (arrivalAtFrom > conn.DepartureTime)
+            {
+                connectionsSkipped++;
+                continue; // We arrived after this train departed
+            }
+
+            // Is this an improvement?
+            if (bestArrival.TryGetValue(conn.ToStationId, out var currentBest) && conn.ArrivalTime >= currentBest)
+            {
+                Console.WriteLine($"[CSA] Arrival at {conn.ToStationId} at {conn.ArrivalTime:HH:mm} is worse than existing {currentBest:HH:mm}, skipping");
+                continue; // We already have a better (earlier) arrival at destination
+            }
+
+            // Capture the exact predecessor chain
+            bestConnection.TryGetValue(conn.FromStationId, out var prevConn);
+            conn.Previous = prevConn;
+
+            // We can board! Update best arrival and connection
+            bestArrival[conn.ToStationId] = conn.ArrivalTime;
+            bestConnection[conn.ToStationId] = conn;
+
+            connectionsBoarded++;
+            Console.WriteLine($"[CSA] Boarded connection: {conn.TrainName} {conn.FromStationId}@{conn.DepartureTime:HH:mm} -> {conn.ToStationId}@{conn.ArrivalTime:HH:mm}");
+
+            // Early exit: if we reached destination with acceptable transfers, record it
+            if (conn.ToStationId == toStationId)
+            {
+                var journey = ReconstructJourney(conn);
+                Console.WriteLine($"[CSA] Reached destination with {journey.Transfers} transfers");
+
+                if (journey.Transfers <= MaxTransfers)
                 {
-                    var earliestDeparture = arrTime.Add(MinTransferTime);
+                    journeys.Add(journey);
+                    Console.WriteLine($"[CSA] Journey recorded (total: {journeys.Count})");
 
-                    foreach (var tr in transferRoutes)
+                    if (journeys.Count >= MaxResults)
                     {
-                        if (tr.ScheduleId == route.ScheduleId && tr.OrderId == route.OrderId)
-                            continue;
-
-                        for (var j = 0; j < tr.Stops.Length; j++)
-                        {
-                            var tStop = tr.Stops[j];
-                            if (tStop.StationId != stop.StationId) continue;
-                            if (tStop.Departure is not { } trDep) continue;
-                            if (trDep < earliestDeparture) continue;
-                            if (j + 1 >= tr.Stops.Length) continue;
-
-                            var newPrev = new List<Ride>(prevRides) { ride };
-                            pq.Enqueue((stop.StationId, trDep, tr, j, transfersUsed + 1, newPrev), trDep);
-                            break;
-                        }
+                        Console.WriteLine($"[CSA] Found {MaxResults} results, stopping early");
+                        break; // Found enough results
                     }
+                }
+                else
+                {
+                    Console.WriteLine($"[CSA] Journey has {journey.Transfers} transfers (max: {MaxTransfers}), skipping");
                 }
             }
         }
 
-        // Phase 4: Assemble results
-        var trips = new List<MultiSegmentTrip>();
-        foreach (var path in results)
-        {
-            var trip = BuildTrip(path);
-            if (trip is not null)
-                trips.Add(trip);
-        }
+        Console.WriteLine($"[CSA] Phase 3 complete: evaluated {connectionsEvaluated}, boarded {connectionsBoarded}, skipped {connectionsSkipped}, found {journeys.Count} journeys");
 
-        return trips
+        // Phase 4: Convert journeys to trips
+        Console.WriteLine($"[CSA] Phase 4: Building {journeys.Count} trips...");
+        var results = journeys
+            .Select(j => BuildTrip(j))
+            .Where(t => t is not null)
+            .Cast<MultiSegmentTrip>()
             .OrderBy(t => t.TotalDuration)
             .ThenBy(t => t.Transfers)
             .Take(MaxResults)
-            .ToArray();
+            .ToList();
+
+        sw.Stop();
+        Console.WriteLine($"[CSA] Complete: returned {results.Count} results in {sw.ElapsedMilliseconds}ms");
+
+        return results;
     }
 
-    private static MultiSegmentTrip? BuildTrip(List<Ride> rides)
+    /// <summary>
+    /// Reconstructs the journey by walking backwards through Connection.Previous pointers.
+    /// </summary>
+    private static Journey ReconstructJourney(Connection finalConnection)
     {
-        if (rides.Count == 0) return null;
+        var path = new List<Connection>();
 
-        var segments = new List<TripSegment>();
-        foreach (var ride in rides)
+        // Walk backwards from final connection to origin
+        for (var c = finalConnection; c != null; c = c.Previous)
+            path.Add(c);
+
+        // Reverse to get chronological order
+        path.Reverse();
+
+        Console.WriteLine($"[CSA] Reconstructing journey with {path.Count} connections");
+
+        // Count train changes (transfers)
+        var transfers = 0;
+        for (var i = 1; i < path.Count; i++)
         {
-            var boardStop = ride.Route.Stops[ride.BoardStopIndex];
-            var alightStop = ride.Route.Stops[ride.AlightStopIndex];
-
-            segments.Add(new TripSegment(
-                ride.Route.ScheduleId,
-                ride.Route.OrderId,
-                ride.Route.TrainName,
-                ride.Route.CarrierCode,
-                ride.Route.CommercialCategory,
-                new PlkStation(boardStop.StationId, "", ""),
-                new PlkStation(alightStop.StationId, "", ""),
-                ride.BoardTime,
-                ride.AlightTime,
-                boardStop.DeparturePlatform,
-                alightStop.ArrivalPlatform));
+            if (path[i].ScheduleId != path[i - 1].ScheduleId ||
+                path[i].OrderId != path[i - 1].OrderId)
+            {
+                transfers++;
+                Console.WriteLine($"[CSA] Transfer at station {path[i].FromStationId}: {path[i - 1].TrainName} -> {path[i].TrainName}");
+            }
         }
 
-        if (segments.Count == 0) return null;
+        Console.WriteLine($"[CSA] Journey reconstruction complete: {path.Count} connections, {transfers} transfers");
+
+        return new Journey(path, transfers);
+    }
+
+    /// <summary>
+    /// Builds a MultiSegmentTrip from a journey (list of connections).
+    /// </summary>
+    private static MultiSegmentTrip? BuildTrip(Journey journey)
+    {
+        if (journey.Connections.Count == 0)
+            return null;
+
+        var segments = journey.Connections.Select(c => new TripSegment(
+            c.ScheduleId,
+            c.OrderId,
+            c.TrainName,
+            c.CarrierCode,
+            c.CommercialCategory,
+            new PlkStation(c.FromStationId, "", ""),
+            new PlkStation(c.ToStationId, "", ""),
+            c.DepartureTime,
+            c.ArrivalTime,
+            c.DeparturePlatform,
+            c.ArrivalPlatform)).ToList();
 
         var departure = segments[0].PlannedDeparture;
         var arrival = segments[^1].PlannedArrival;
@@ -237,7 +287,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         }
 
         return new MultiSegmentTrip(
-            segments, departure, arrival, segments.Count - 1, totalDuration, transferTime);
+            segments, departure, arrival, journey.Transfers, totalDuration, transferTime);
     }
 
     private static bool OperatesOnDate(PlkRouteDto route, DateOnly date)
@@ -248,11 +298,18 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         return dates.Contains(date);
     }
 
-    private static TimeOnly? TryParse(string? raw)
+    private static bool TryParseTime(string? raw, out TimeOnly time)
     {
-        if (string.IsNullOrEmpty(raw)) return null;
-        if (TimeOnly.TryParse(raw, out var t)) return t;
-        if (TimeSpan.TryParse(raw, out var ts)) return TimeOnly.FromTimeSpan(ts);
-        return null;
+        time = TimeOnly.MinValue;
+        if (string.IsNullOrEmpty(raw))
+            return false;
+        if (TimeOnly.TryParse(raw, out time))
+            return true;
+        if (TimeSpan.TryParse(raw, out var ts))
+        {
+            time = TimeOnly.FromTimeSpan(ts);
+            return true;
+        }
+        return false;
     }
 }

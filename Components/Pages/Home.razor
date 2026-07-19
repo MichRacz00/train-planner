@@ -168,49 +168,6 @@
     </div>
 }
 
-@if (SelectedTrip != null)
-{
-    <div class="tp-modal-backdrop" @onclick="CloseModal">
-        <div class="tp-modal" @onclick:stopPropagation="true">
-            <button class="tp-modal-close" @onclick="CloseModal">&times;</button>
-            <h2 class="tp-modal-title">Booking Confirmation</h2>
-            <div class="tp-modal-body">
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Route</span>
-                    <span class="tp-confirmation-value">@SelectedTrip.From.Name &rarr; @SelectedTrip.To.Name</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Train(s)</span>
-                    <span class="tp-confirmation-value">@string.Join(" + ", SelectedTrip.Segments.Select(s => $"{GetTrainTypeLabel(s.TrainType)} {s.TrainNumber}"))</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Date</span>
-                    <span class="tp-confirmation-value">@SearchParams.TravelDate.ToString("dddd, d MMMM yyyy")</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Departure</span>
-                    <span class="tp-confirmation-value">@SelectedTrip.Departure.ToString("HH:mm")</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Arrival</span>
-                    <span class="tp-confirmation-value">@SelectedTrip.Arrival.ToString("HH:mm")</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Passengers</span>
-                    <span class="tp-confirmation-value">@SearchParams.Passengers</span>
-                </div>
-                <div class="tp-confirmation-row tp-confirmation-row--total">
-                    <span class="tp-confirmation-label">Total</span>
-                    <span class="tp-confirmation-value tp-price-total">@((SelectedTrip.PricePerPerson * SearchParams.Passengers).ToString("C0", new System.Globalization.CultureInfo("da-DK")))</span>
-                </div>
-            </div>
-            <div class="tp-modal-actions">
-                <button class="tp-btn-secondary" @onclick="CloseModal">Cancel</button>
-                <button class="tp-btn-primary" @onclick="ConfirmBooking">Confirm Booking</button>
-            </div>
-        </div>
-    </div>
-}
 
 @code {
     private TripSearchParams SearchParams { get; set; } = new()
@@ -305,19 +262,5 @@
         var now = TimeOnly.FromDateTime(DateTime.Now);
         // First trip that hasn't departed yet; fall back to last if all are past
         return trips.FirstOrDefault(t => t.Departure >= now) ?? trips[^1];
-    }
-
-    private void CloseModal()
-    {
-        SelectedTrip = null;
-    }
-
-    private void ConfirmBooking()
-    {
-        // Stub: in a real app this would call a booking API
-        SelectedTrip = null;
-        HasSearched = false;
-        TripResults = [];
-        ValidationMessage = null;
     }
 }

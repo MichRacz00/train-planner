@@ -149,13 +149,15 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         var connectionsBoarded = 0;
         var connectionsSkipped = 0;
 
-        // Initialize: we can start at origin at departureAfter
+        // Initialize: start from midnight (00:00) to discover ALL routes throughout the day
+        // Post-filtering will organize them into before/after the requested departureAfter time
         labels[fromStationId] = new Label
         {
-            Arrival = departureAfter.ToTimeSpan(),
+            Arrival = TimeOnly.MinValue.ToTimeSpan(),  // Always start from 00:00
             LastConnection = null!
         };
-        Console.WriteLine($"[CSA] Initialized arrival at station {fromStationId} at {departureAfter}");
+        Console.WriteLine($"[CSA] Initialized arrival at station {fromStationId} at 00:00 (exploring full day)");
+        Console.WriteLine($"[CSA] Will filter routes by departure time: before {departureAfter}, after {departureAfter}");
 
         foreach (var conn in connections)
         {

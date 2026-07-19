@@ -6,4 +6,6 @@ public interface IPlkTripService
 {
     Task<IReadOnlyList<PlkStation>> GetStationsAsync(string? search = null, int pageSize = 500);
     Task<List<ScheduledTrip>> SearchTripsAsync(PlkTripSearchParams searchParams);
+    Task<IReadOnlyList<(int ScheduleId, int OrderId)>> GetAllRouteIdsAsync(DateOnly date);
+    Task<PlkRouteDto?> GetRouteDetailsAsync(int scheduleId, int orderId);
 }

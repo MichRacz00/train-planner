@@ -173,4 +173,23 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
         if (string.IsNullOrEmpty(raw)) return false;
         return TimeSpan.TryParse(raw, out ts);
     }
+
+    public async Task<IReadOnlyList<(int ScheduleId, int OrderId)>> GetAllRouteIdsAsync(DateOnly date)
+    {
+        var client = CreateClient();
+        var url = $"/api/v1/schedules/routes/{date:yyyy-MM-dd}";
+        var raw = await client.GetStringAsync(url);
+        var resp = JsonSerializer.Deserialize<PlkRoutesListResponse>(raw, JsonOptions);
+        return resp?.Routes?
+            .Select(r => (r.ScheduleId, r.OrderId))
+            .ToArray() ?? Array.Empty<(int ScheduleId, int OrderId)>();
+    }
+
+    public async Task<PlkRouteDto?> GetRouteDetailsAsync(int scheduleId, int orderId)
+    {
+        var client = CreateClient();
+        var url = $"/api/v1/schedules/route/{scheduleId}/{orderId}";
+        var raw = await client.GetStringAsync(url);
+        return JsonSerializer.Deserialize<PlkRouteDto>(raw, JsonOptions);
+    }
 }

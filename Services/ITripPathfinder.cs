@@ -8,5 +8,6 @@ public interface ITripPathfinder
         int fromStationId,
         int toStationId,
         DateOnly travelDate,
+        TimeOnly departureAfter = default,
         CancellationToken ct = default);
 }

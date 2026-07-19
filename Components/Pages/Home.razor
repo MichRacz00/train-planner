@@ -61,6 +61,24 @@
                        min="@DateTime.Today.ToString("yyyy-MM-dd")" />
             </div>
 
+            <div class="tp-search-field tp-search-field--narrow">
+                <label class="tp-label" for="departure-time">
+                    <span class="tp-label-icon">&#x1F557;</span> Time
+                </label>
+                <input id="departure-time" type="time" class="tp-input"
+                       value="@SearchParams.DepartureTime.ToString("HH:mm")"
+                       @onchange="OnTimeChanged" />
+            </div>
+
+            <div class="tp-search-field tp-search-field--narrow">
+                <label class="tp-label" for="departure-time">
+                    <span class="tp-label-icon">&#x1F557;</span> Time
+                </label>
+                <input id="departure-time" type="time" class="tp-input"
+                       value="@SearchParams.DepartureTime.ToString("HH:mm")"
+                       @onchange="OnTimeChanged" />
+            </div>
+
             <div class="tp-search-field tp-search-field--xnarrow">
                 <label class="tp-label" for="passengers">
                     <span class="tp-label-icon">&#x1F464;</span> Passengers
@@ -198,6 +216,7 @@
         public string   FromStation { get; set; } = "33605";
         public string   ToStation   { get; set; } = "80416";
         public DateOnly TravelDate  { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public TimeOnly DepartureTime { get; set; } = TimeOnly.FromDateTime(DateTime.Now);
         public int      Passengers  { get; set; } = 1;
 
         public int FromStationId => int.TryParse(FromStation, out var v) ? v : 0;
@@ -261,7 +280,7 @@
         if (IncludeTransfers)
         {
             var multiSegmentTrips = await TripPathfinder.FindTripsAsync(
-                SearchParams.FromStationId, SearchParams.ToStationId, SearchParams.TravelDate);
+                SearchParams.FromStationId, SearchParams.ToStationId, SearchParams.TravelDate, SearchParams.DepartureTime);
 
             TripResults = multiSegmentTrips.Select(m => ToDisplayTrip(m)).ToList();
         }
@@ -347,6 +366,12 @@
     {
         if (DateOnly.TryParse(e.Value?.ToString(), out var date))
             SearchParams.TravelDate = date;
+    }
+
+    private void OnTimeChanged(ChangeEventArgs e)
+    {
+        if (TimeOnly.TryParse(e.Value?.ToString(), out var time))
+            SearchParams.DepartureTime = time;
     }
 
     private string GetStationName(string code)

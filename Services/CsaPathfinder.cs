@@ -7,13 +7,21 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 {
     private readonly IPlkTripService _tripService = tripService;
 
+    // Convert TimeSpan to TimeOnly, wrapping times > 24 hours back to 0-24 range
+    private static TimeOnly ToTimeOnly(TimeSpan ts)
+    {
+        var totalSeconds = (long)ts.TotalSeconds % (24L * 3600L);
+        if (totalSeconds < 0) totalSeconds += 24L * 3600L;
+        return TimeOnly.FromTimeSpan(TimeSpan.FromSeconds(totalSeconds));
+    }
+
     // A single connection: one train segment between two stations
     private sealed class Connection
     {
         public int FromStationId { get; init; }
         public int ToStationId { get; init; }
-        public TimeOnly DepartureTime { get; init; }
-        public TimeOnly ArrivalTime { get; init; }
+        public TimeSpan DepartureTime { get; init; }
+        public TimeSpan ArrivalTime { get; init; }
         public int ScheduleId { get; init; }
         public int OrderId { get; init; }
         public string TrainName { get; init; } = "";
@@ -23,13 +31,20 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         public string? ArrivalPlatform { get; init; }
     }
 
+    // Label: state at a station during CSA scan
+    private sealed class Label
+    {
+        public TimeSpan Arrival { get; init; }
+        public Connection LastConnection { get; init; } = null!;
+    }
+
     // Journey result: list of connections taken and transfer count
     private sealed record Journey(
         List<Connection> Connections,
         int Transfers);
 
     public async Task<IReadOnlyList<MultiSegmentTrip>> FindTripsAsync(
-        int fromStationId, int toStationId, DateOnly travelDate, CancellationToken ct = default)
+        int fromStationId, int toStationId, DateOnly travelDate, TimeOnly departureAfter = default, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         Console.WriteLine($"[CSA] Starting search: {fromStationId} -> {toStationId} on {travelDate}");
@@ -83,12 +98,22 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
                 if (!TryParseTime(to.ArrivalTime, out var arrTime))
                     continue;
 
+                // Convert to TimeSpan for midnight-safe calculations
+                var depTimeSpan = depTime.ToTimeSpan();
+                var arrTimeSpan = arrTime.ToTimeSpan();
+
+                // If arrival < departure, train crosses midnight - add 24 hours
+                if (arrTimeSpan < depTimeSpan)
+                {
+                    arrTimeSpan = arrTimeSpan.Add(TimeSpan.FromHours(24));
+                }
+
                 connections.Add(new Connection
                 {
                     FromStationId = from.StationId,
                     ToStationId = to.StationId,
-                    DepartureTime = depTime,
-                    ArrivalTime = arrTime,
+                    DepartureTime = depTimeSpan,
+                    ArrivalTime = arrTimeSpan,
                     ScheduleId = route.ScheduleId,
                     OrderId = route.OrderId,
                     TrainName = route.Name ?? route.NationalNumber ?? $"{route.CarrierCode} {route.OrderId}",
@@ -117,16 +142,19 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 
         // Phase 3: CSA scan - single pass through sorted connections
         Console.WriteLine($"[CSA] Phase 3: Starting CSA scan...");
-        var bestArrival = new Dictionary<int, TimeOnly>();
-        var bestConnection = new Dictionary<int, Connection>();
+        var labels = new Dictionary<int, Label>();
         var predecessors = new Dictionary<Connection, Connection?>();
         var connectionsEvaluated = 0;
         var connectionsBoarded = 0;
         var connectionsSkipped = 0;
 
-        // Initialize: we can start at origin at any time
-        bestArrival[fromStationId] = TimeOnly.MinValue;
-        Console.WriteLine($"[CSA] Initialized arrival at station {fromStationId} at {TimeOnly.MinValue}");
+        // Initialize: we can start at origin at departureAfter
+        labels[fromStationId] = new Label
+        {
+            Arrival = departureAfter.ToTimeSpan(),
+            LastConnection = null!
+        };
+        Console.WriteLine($"[CSA] Initialized arrival at station {fromStationId} at {departureAfter}");
 
         foreach (var conn in connections)
         {
@@ -137,41 +165,48 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             connectionsEvaluated++;
 
             // Can we board this connection?
-            if (!bestArrival.TryGetValue(conn.FromStationId, out var arrivalAtFrom))
+            if (!labels.TryGetValue(conn.FromStationId, out var label))
             {
                 connectionsSkipped++;
                 continue; // We haven't reached the boarding station yet
             }
 
-            if (arrivalAtFrom > conn.DepartureTime)
+            if (label.Arrival > conn.DepartureTime)
             {
                 connectionsSkipped++;
                 continue; // We arrived after this train departed
             }
 
             // Is this an improvement?
-            if (bestArrival.TryGetValue(conn.ToStationId, out var currentBest) && conn.ArrivalTime >= currentBest)
+            if (labels.TryGetValue(conn.ToStationId, out var currentLabel) && conn.ArrivalTime >= currentLabel.Arrival)
             {
-                Console.WriteLine($"[CSA] Arrival at {conn.ToStationId} at {conn.ArrivalTime:HH:mm} is worse than existing {currentBest:HH:mm}, skipping");
+                var connArrTimeOnly = ToTimeOnly(conn.ArrivalTime);
+                var labelArrTimeOnly = ToTimeOnly(currentLabel.Arrival);
+                Console.WriteLine($"[CSA] Arrival at {conn.ToStationId} at {connArrTimeOnly:HH:mm} is worse than existing {labelArrTimeOnly:HH:mm}, skipping");
                 continue; // We already have a better (earlier) arrival at destination
             }
 
             // Capture the exact predecessor chain
-            bestConnection.TryGetValue(conn.FromStationId, out var prevConn);
-            predecessors[conn] = prevConn;
+            labels.TryGetValue(conn.FromStationId, out var prevLabel);
+            predecessors[conn] = prevLabel?.LastConnection;
 
-            // We can board! Update best arrival and connection
-            bestArrival[conn.ToStationId] = conn.ArrivalTime;
-            bestConnection[conn.ToStationId] = conn;
+            // We can board! Update label at this station
+            labels[conn.ToStationId] = new Label
+            {
+                Arrival = conn.ArrivalTime,
+                LastConnection = conn
+            };
 
             connectionsBoarded++;
-            Console.WriteLine($"[CSA] Boarded connection: {conn.TrainName} {conn.FromStationId}@{conn.DepartureTime:HH:mm} -> {conn.ToStationId}@{conn.ArrivalTime:HH:mm}");
+            var depTimeOnly = ToTimeOnly(conn.DepartureTime);
+            var arrTimeOnly = ToTimeOnly(conn.ArrivalTime);
+            Console.WriteLine($"[CSA] Boarded connection: {conn.TrainName} {conn.FromStationId}@{depTimeOnly:HH:mm} -> {conn.ToStationId}@{arrTimeOnly:HH:mm}");
         }
 
         Console.WriteLine($"[CSA] Phase 3 complete: evaluated {connectionsEvaluated}, boarded {connectionsBoarded}, skipped {connectionsSkipped}");
 
         // Reconstruct the earliest-arrival journey
-        if (!bestConnection.TryGetValue(toStationId, out var finalConn))
+        if (!labels.TryGetValue(toStationId, out var finalLabel))
         {
             Console.WriteLine($"[CSA] No path found to destination");
             sw.Stop();
@@ -179,7 +214,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             return [];
         }
 
-        var journey = ReconstructJourney(finalConn, predecessors);
+        var journey = ReconstructJourney(finalLabel.LastConnection, predecessors);
         var trip = BuildTrip(journey);
 
         sw.Stop();
@@ -237,29 +272,28 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             c.CommercialCategory,
             new PlkStation(c.FromStationId, "", ""),
             new PlkStation(c.ToStationId, "", ""),
-            c.DepartureTime,
-            c.ArrivalTime,
+            ToTimeOnly(c.DepartureTime),
+            ToTimeOnly(c.ArrivalTime),
             c.DeparturePlatform,
             c.ArrivalPlatform)).ToList();
 
-        var departure = segments[0].PlannedDeparture;
-        var arrival = segments[^1].PlannedArrival;
+        var departure = journey.Connections[0].DepartureTime;
+        var arrival = journey.Connections[^1].ArrivalTime;
 
-        var totalDuration = arrival > departure
-            ? arrival - departure
-            : TimeSpan.FromHours(24) - (departure - arrival);
+        var totalDuration = arrival - departure;
 
         var transferTime = TimeSpan.Zero;
-        for (var i = 1; i < segments.Count; i++)
+        for (var i = 1; i < journey.Connections.Count; i++)
         {
-            var gap = segments[i].PlannedDeparture > segments[i - 1].PlannedArrival
-                ? segments[i].PlannedDeparture - segments[i - 1].PlannedArrival
-                : TimeSpan.FromHours(24) - (segments[i - 1].PlannedArrival - segments[i].PlannedDeparture);
+            var gap = journey.Connections[i].DepartureTime - journey.Connections[i - 1].ArrivalTime;
             transferTime += gap;
         }
 
         return new MultiSegmentTrip(
-            segments, departure, arrival, journey.Transfers, totalDuration, transferTime);
+            segments, 
+            ToTimeOnly(departure), 
+            ToTimeOnly(arrival), 
+            journey.Transfers, totalDuration, transferTime);
     }
 
     private static bool OperatesOnDate(PlkRouteDto route, DateOnly date)

@@ -55,6 +55,7 @@ public record PlkTripSearchParams
     public int FromStationId { get; set; }
     public int ToStationId { get; set; }
     public DateOnly TravelDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+    public TimeOnly DepartureTime { get; set; } = TimeOnly.FromTimeSpan(TimeSpan.Zero);
 }
 
 public record ScheduledTrip

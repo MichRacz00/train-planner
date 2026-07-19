@@ -181,7 +181,9 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             }
 
             // Is this an improvement?
-            if (labels.TryGetValue(conn.ToStationId, out var currentLabel))
+            // For intermediate stations: only keep earliest arrival (optimization)
+            // For destination station: allow all arrivals (we'll sort by departure time later)
+            if (conn.ToStationId != toStationId && labels.TryGetValue(conn.ToStationId, out var currentLabel))
             {
                 // Normalize both times to 0-86400 range (within 1 day) for comparison
                 // This handles multi-day TimeSpan values correctly
@@ -194,7 +196,8 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
                     var connArrTimeOnly = ToTimeOnly(conn.ArrivalTime);
                     var labelArrTimeOnly = ToTimeOnly(currentLabel.Arrival);
                     Console.WriteLine($"[CSA] Arrival at {conn.ToStationId} at {connArrTimeOnly:HH:mm} is worse than existing {labelArrTimeOnly:HH:mm}, skipping");
-                    continue; // We already have a better (earlier) arrival at destination
+                    connectionsSkipped++;
+                    continue; // We already have a better (earlier) arrival at intermediate station
                 }
             }
 
@@ -236,58 +239,67 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
             return [];
         }
 
-        var beforeDeparture = new List<MultiSegmentTrip>();
-        var afterDeparture = new List<MultiSegmentTrip>();
-        var seenRoutes = new HashSet<string>();
         var departureTimeThreshold = departureAfter.ToTimeSpan();
 
-        // Sort destination arrivals by departure time (not discovery order)
-        // This ensures we see early morning routes first, then progressively later routes
-        var sortedByDeparture = destinationArrivals
-            .OrderBy(da => da.Journey.Connections[0].DepartureTime)
+        Console.WriteLine($"[CSA] Phase 4: Sorting {destinationArrivals.Count} routes by departure time proximity to {ToTimeOnly(departureTimeThreshold):HH:mm}...");
+
+        // Separate routes into those departing before and after the requested time
+        var beforeRoutes = destinationArrivals
+            .Where(da => da.Journey.Connections[0].DepartureTime < departureTimeThreshold)
+            .OrderByDescending(da => da.Journey.Connections[0].DepartureTime)  // Latest before threshold first (closest to requested time)
             .ToList();
 
-        foreach (var (_, discoveredJourney) in sortedByDeparture)
-        {
-            if (seenRoutes.Count >= 20) break;
+        var afterRoutes = destinationArrivals
+            .Where(da => da.Journey.Connections[0].DepartureTime >= departureTimeThreshold)
+            .OrderBy(da => da.Journey.Connections[0].DepartureTime)  // Earliest after threshold first (closest to requested time)
+            .ToList();
 
-            var routeKey = GetJourneyKey(discoveredJourney);
+        Console.WriteLine($"[CSA] Found {beforeRoutes.Count} routes before {ToTimeOnly(departureTimeThreshold):HH:mm}, {afterRoutes.Count} routes after");
+
+        var seenRoutes = new HashSet<string>();
+        var beforeTrips = new List<MultiSegmentTrip>();
+        var afterTrips = new List<MultiSegmentTrip>();
+
+        // Collect up to 3 "before" routes (sorted by relevance: latest before time first)
+        foreach (var (_, journey) in beforeRoutes)
+        {
+            if (beforeTrips.Count >= 3) break;
+
+            var routeKey = GetJourneyKey(journey);
             if (seenRoutes.Contains(routeKey)) continue;
 
-            var trip = BuildTrip(discoveredJourney);
+            var trip = BuildTrip(journey);
             if (trip == null) continue;
 
             seenRoutes.Add(routeKey);
-
-            // Classify by departure time
-            var journeyDepTime = discoveredJourney.Connections[0].DepartureTime;
-
-            if (journeyDepTime < departureTimeThreshold)
-            {
-                if (beforeDeparture.Count < 3)
-                {
-                    beforeDeparture.Add(trip);
-                    Console.WriteLine($"[CSA] Route {ToTimeOnly(journeyDepTime):HH:mm}-{trip.ArrivalTime:HH:mm} added to BEFORE band");
-                }
-            }
-            else
-            {
-                if (afterDeparture.Count < 4)
-                {
-                    afterDeparture.Add(trip);
-                    Console.WriteLine($"[CSA] Route {ToTimeOnly(journeyDepTime):HH:mm}-{trip.ArrivalTime:HH:mm} added to AFTER band");
-                }
-            }
+            beforeTrips.Add(trip);
+            Console.WriteLine($"[CSA] Route {trip.DepartureTime:HH:mm}-{trip.ArrivalTime:HH:mm} added to BEFORE band");
         }
 
-        var results = beforeDeparture
-            .Concat(afterDeparture)
+        // Collect up to 4 "after" routes (sorted by relevance: earliest after time first)
+        foreach (var (_, journey) in afterRoutes)
+        {
+            if (afterTrips.Count >= 4) break;
+
+            var routeKey = GetJourneyKey(journey);
+            if (seenRoutes.Contains(routeKey)) continue;
+
+            var trip = BuildTrip(journey);
+            if (trip == null) continue;
+
+            seenRoutes.Add(routeKey);
+            afterTrips.Add(trip);
+            Console.WriteLine($"[CSA] Route {trip.DepartureTime:HH:mm}-{trip.ArrivalTime:HH:mm} added to AFTER band");
+        }
+
+        var results = beforeTrips
+            .Concat(afterTrips)
             .OrderBy(t => t.DepartureTime)
             .Take(7)
             .ToList();
 
         sw.Stop();
-        Console.WriteLine($"[CSA] Complete: returned {results.Count} results ({beforeDeparture.Count} before, {afterDeparture.Count} after) in {sw.ElapsedMilliseconds}ms");
+        Console.WriteLine($"[CSA] Complete: returned {results.Count} results ({beforeTrips.Count} before, {afterTrips.Count} after) in {sw.ElapsedMilliseconds}ms");
 
         return results;
     }

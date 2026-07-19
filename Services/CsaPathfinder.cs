@@ -232,7 +232,13 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         var seenRoutes = new HashSet<string>();
         var departureTimeThreshold = departureAfter.ToTimeSpan();
 
-        foreach (var (_, discoveredJourney) in destinationArrivals)
+        // Sort destination arrivals by departure time (not discovery order)
+        // This ensures we see early morning routes first, then progressively later routes
+        var sortedByDeparture = destinationArrivals
+            .OrderBy(da => da.Journey.Connections[0].DepartureTime)
+            .ToList();
+
+        foreach (var (_, discoveredJourney) in sortedByDeparture)
         {
             if (seenRoutes.Count >= 20) break;
 

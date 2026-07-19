@@ -2,13 +2,6 @@ namespace train_planner.Models;
 
 public record Station(string Code, string Name, string City);
 
-public record TripSearchParams
-{
-    public string FromStation { get; set; } = string.Empty;
-    public string ToStation { get; set; } = string.Empty;
-    public DateOnly TravelDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
-    public int Passengers { get; set; } = 1;
-}
 
 public enum TrainType
 {

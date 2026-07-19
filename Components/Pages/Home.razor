@@ -129,7 +129,10 @@
                             <div class="tp-trip-header">
                                 <div class="tp-trip-times">
                                     <span class="tp-time-value">@trip.Departure.ToString("HH:mm")</span>
-                                    <span class="tp-arrow">&#8594;</span>
+                                    <svg class="tp-arrow-icon" xmlns="http://www.w3.org/2000/svg" width="11.707" height="11" viewBox="0 0 11.707 11">
+                                        <polygon points="10.293 5.5 4.793 11 6.207 11 11.707 5.5 6.207 0 4.793 0 10.293 5.5"></polygon>
+                                        <path d="M.5,5h9.728a.5.5,0,0,1,.5.5h0a.5.5,0,0,1-.5.5H.5A.5.5,0,0,1,0,5.5H0A.5.5,0,0,1,.5,5Z"></path>
+                                    </svg>
                                     <span class="tp-time-value">@trip.Arrival.ToString("HH:mm")</span>
                                 </div>
 

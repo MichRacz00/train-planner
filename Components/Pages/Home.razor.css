@@ -244,7 +244,7 @@
 
 .tp-trip-card--selected {
     border: 1px solid var(--ns-blue-light);
-    border-left-width: 5px;
+    border-left-width: 4px;
     box-shadow: 0 4px 16px rgba(0, 80, 200, 0.18);
 }
 
@@ -278,11 +278,9 @@
     white-space: nowrap;
 }
 
-.tp-arrow {
-    font-size: 1.15rem;
-    color: var(--ns-blue);
-    line-height: 1;
-    user-select: none;
+.tp-arrow-icon {
+    flex-shrink: 0;
+    fill: var(--ns-blue);
 }
 
 /* Price + CTA */

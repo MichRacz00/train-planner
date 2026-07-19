@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Xml;
 using train_planner.Models;
 
 namespace train_planner.Services;
@@ -172,7 +171,6 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
     {
         ts = TimeSpan.Zero;
         if (string.IsNullOrEmpty(raw)) return false;
-        try { ts = XmlConvert.ToTimeSpan(raw); return true; }
-        catch { return false; }
+        return TimeSpan.TryParse(raw, out ts);
     }
 }

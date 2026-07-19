@@ -123,12 +123,16 @@
             <div class="tp-results-list">
                 @foreach (var trip in TripResults)
                 {
-                    <div class="tp-trip-card">
+                    <div class="tp-trip-card @(SelectedTrip?.ScheduleId == trip.ScheduleId && SelectedTrip?.OrderId == trip.OrderId ? "tp-trip-card--selected" : "")"
+                         @onclick="() => SelectTrip(trip)">
                         <div class="tp-card-content">
                             <div class="tp-trip-header">
                                 <div class="tp-trip-times">
                                     <span class="tp-time-value">@trip.Departure.ToString("HH:mm")</span>
-                                    <span class="tp-arrow">&#8594;</span>
+                                    <svg class="tp-arrow-icon" xmlns="http://www.w3.org/2000/svg" width="11.707" height="11" viewBox="0 0 11.707 11">
+                                        <polygon points="10.293 5.5 4.793 11 6.207 11 11.707 5.5 6.207 0 4.793 0 10.293 5.5"></polygon>
+                                        <path d="M.5,5h9.728a.5.5,0,0,1,.5.5h0a.5.5,0,0,1-.5.5H.5A.5.5,0,0,1,0,5.5H0A.5.5,0,0,1,.5,5Z"></path>
+                                    </svg>
                                     <span class="tp-time-value">@trip.Arrival.ToString("HH:mm")</span>
                                 </div>
 
@@ -151,7 +155,10 @@
                                 {
                                     var seg = trip.Segments[i];
                                     <span class="tp-segment">
-                                        @GetTrainTypeLabel(seg.TrainType) P@(seg.Platform)
+                                        <svg class="tp-train-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="23" viewBox="0 0 15 23"><path d="M7.492,0C3.221,0,0,1.478,0,3.438V15.961a.426.426,0,0,0,.013.062.433.433,0,0,0,.02.1.451.451,0,0,0,.047.093.568.568,0,0,0,.028.055L2.1,18.788a.5.5,0,0,0,.392.19H4.285L2.139,21.124h0l-1,1a.5.5,0,0,0,.707.708l.854-.854h9.586l.853.854a.5.5,0,1,0,.707-.708l-1-1h0L10.7,18.978h1.793a.5.5,0,0,0,.392-.19l1.992-2.517a.568.568,0,0,0,.028-.055.507.507,0,0,0,.047-.093.433.433,0,0,0,.02-.1.426.426,0,0,0,.013-.062V3.438C14.984,1.478,11.763,0,7.492,0Zm6.492,15.338c-.488.254-2.676.661-6.492.661s-6-.407-6.492-.661V6.177L2.443,10a.5.5,0,0,0,.134.2,8.153,8.153,0,0,0,4.947,2.051,8.139,8.139,0,0,0,4.883-2.051.509.509,0,0,0,.134-.2l1.443-3.821ZM7.492,1c3.737,0,6.368,1.226,6.487,2.358l-2.33,6.169a7.115,7.115,0,0,1-4.125,1.718,7.133,7.133,0,0,1-4.19-1.718L1.224,3.938H11.992a.5.5,0,0,0,0-1H1.161C1.789,1.943,4.215,1,7.492,1Zm3.793,19.978H3.7l2-2H9.285Zm.965-3H2.734L1.605,16.552A29.531,29.531,0,0,0,7.492,17a29.538,29.538,0,0,0,5.887-.447Z"></path><circle cx="2.992" cy="12.978" r="1"></circle><circle cx="11.992" cy="12.978" r="1"></circle></svg>
+                                        @GetTrainTypeLabel(seg.TrainType) 
+                                        <svg class="tp-platform-icon" xmlns="http://www.w3.org/2000/svg" width="14px" height="14px" viewBox="0 0 14 14"><path d="M14,14H0V3H3V0H14ZM1,13H13V1H4V4H1Z"></path></svg>
+                                        @seg.Platform
                                     </span>
                                     @if (i < trip.Segments.Count - 1)
                                     {
@@ -164,50 +171,6 @@
                 }
             </div>
         }
-    </div>
-}
-
-@if (SelectedTrip != null)
-{
-    <div class="tp-modal-backdrop" @onclick="CloseModal">
-        <div class="tp-modal" @onclick:stopPropagation="true">
-            <button class="tp-modal-close" @onclick="CloseModal">&times;</button>
-            <h2 class="tp-modal-title">Booking Confirmation</h2>
-            <div class="tp-modal-body">
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Route</span>
-                    <span class="tp-confirmation-value">@SelectedTrip.From.Name &rarr; @SelectedTrip.To.Name</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Train(s)</span>
-                    <span class="tp-confirmation-value">@string.Join(" + ", SelectedTrip.Segments.Select(s => $"{GetTrainTypeLabel(s.TrainType)} {s.TrainNumber}"))</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Date</span>
-                    <span class="tp-confirmation-value">@SearchParams.TravelDate.ToString("dddd, d MMMM yyyy")</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Departure</span>
-                    <span class="tp-confirmation-value">@SelectedTrip.Departure.ToString("HH:mm")</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Arrival</span>
-                    <span class="tp-confirmation-value">@SelectedTrip.Arrival.ToString("HH:mm")</span>
-                </div>
-                <div class="tp-confirmation-row">
-                    <span class="tp-confirmation-label">Passengers</span>
-                    <span class="tp-confirmation-value">@SearchParams.Passengers</span>
-                </div>
-                <div class="tp-confirmation-row tp-confirmation-row--total">
-                    <span class="tp-confirmation-label">Total</span>
-                    <span class="tp-confirmation-value tp-price-total">@((SelectedTrip.PricePerPerson * SearchParams.Passengers).ToString("C0", new System.Globalization.CultureInfo("da-DK")))</span>
-                </div>
-            </div>
-            <div class="tp-modal-actions">
-                <button class="tp-btn-secondary" @onclick="CloseModal">Cancel</button>
-                <button class="tp-btn-primary" @onclick="ConfirmBooking">Confirm Booking</button>
-            </div>
-        </div>
     </div>
 }
 
@@ -268,6 +231,7 @@
         });
         HasSearched = true;
         IsSearching = false;
+        SelectedTrip = BestTrip(TripResults);
     }
 
     private void SwapStations()
@@ -304,13 +268,15 @@
         _               => "•"
     };
 
-    private void SelectTrip(ScheduledTrip trip) { SelectedTrip = trip; }
-    private void CloseModal()                   { SelectedTrip = null; }
-    private void ConfirmBooking()
+    private void SelectTrip(ScheduledTrip trip)
     {
-        SelectedTrip      = null;
-        HasSearched       = false;
-        TripResults       = [];
-        ValidationMessage = null;
+        SelectedTrip = SelectedTrip?.ScheduleId == trip.ScheduleId && SelectedTrip?.OrderId == trip.OrderId ? null : trip;
+    }
+    
+    private static ScheduledTrip? BestTrip(List<ScheduledTrip> trips)
+    {
+        if (trips.Count == 0) return null;
+        var now = TimeOnly.FromDateTime(DateTime.Now);
+        return trips.FirstOrDefault(t => t.PlannedDeparture >= now) ?? trips[^1];
     }
 }

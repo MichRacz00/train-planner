@@ -65,7 +65,7 @@
 .tp-select,
 .tp-input {
     height: 3rem;
-    border: 1.5px solid var(--ns-border);
+    border: 1.5px solid;
     border-radius: var(--ns-radius-md);
     padding: 0 0.875rem;
     font-size: 1rem;
@@ -79,7 +79,7 @@
 
 .tp-select:focus,
 .tp-input:focus {
-    border-color: var(--ns-blue-mid);
+    border-color: var(--ns-blue-light);
     box-shadow: 0 0 0 3px rgba(0, 80, 200, 0.15);
 }
 
@@ -88,7 +88,7 @@
     align-self: flex-end;
     width: 100%;
     height: 3rem;
-    border: 1.5px solid var(--ns-border);
+    border: 1.5px solid;
     border-radius: var(--ns-radius-md);
     background: var(--ns-bg);
     cursor: pointer;
@@ -110,7 +110,7 @@
 
 .tp-swap-btn:hover {
     background: var(--ns-blue-light);
-    border-color: var(--ns-blue-mid);
+    border-color: var(--ns-blue);
     color: var(--ns-blue);
 }
 
@@ -135,7 +135,7 @@
 }
 
 .tp-search-btn:hover:not(:disabled) {
-    background: var(--ns-yellow-hover);
+    background: var(--ns-yellow);
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
@@ -213,7 +213,7 @@
 
 .tp-results-count {
     font-size: 0.82rem;
-    color: var(--ns-blue-mid);
+    color: var(--ns-blue);
     background: var(--ns-blue-light);
     padding: 0.2rem 0.75rem;
     border-radius: var(--ns-radius-pill);
@@ -234,14 +234,21 @@
     transition: background-color 0.15s, border-color 0.15s;
     cursor: pointer;
     margin-bottom: 1px;
+    border: 1px solid transparent;
+    border-left-width: 4px;
 }
 
-.tp-trip-card:hover {
+.tp-trip-card:hover:not(.tp-trip-card--selected) {
     background-color: #f9f9f9;
-    border-color: #d0d0d0;
 }
 
-.tp-card-content {
+.tp-trip-card--selected {
+    border: 1px solid var(--ns-blue-light);
+    border-left-width: 4px;
+    box-shadow: 0 4px 16px rgba(0, 80, 200, 0.18);
+}
+
+.tp-card-content {  
     padding: 1rem;
 }
 
@@ -271,11 +278,9 @@
     white-space: nowrap;
 }
 
-.tp-arrow {
-    font-size: 1.15rem;
-    color: var(--ns-blue);
-    line-height: 1;
-    user-select: none;
+.tp-arrow-icon {
+    flex-shrink: 0;
+    fill: var(--ns-blue);
 }
 
 /* Price + CTA */
@@ -323,7 +328,7 @@
 }
 
 .tp-book-btn:hover {
-    background: var(--ns-yellow-hover);
+    background: var(--ns-yellow);
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
@@ -335,19 +340,36 @@
     gap: 0.35rem;
     background: inherit;
     cursor: pointer;
+    color: var(--ns-text-muted);
 }
 
 .tp-segment {
     font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--ns-text-muted);
+    font-weight: 300;
     white-space: nowrap;
+}
+
+.tp-train-icon {
+    width: 14px;
+    height: 22px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 4px;
+    fill: var(--ns-text-muted);
+}
+
+.tp-platform-icon {
+    width: 12px;
+    height: 12px;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0 2px;
+    fill: var(--ns-text-muted);
 }
 
 .tp-segment-plus {
     font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--ns-border);
+    font-weight: 400;
 }
 
 /* No results */
@@ -357,7 +379,6 @@
     background: var(--ns-bg-white);
     border-radius: var(--ns-radius-lg);
     box-shadow: var(--ns-shadow-sm);
-    border: 1.5px solid var(--ns-border);
 }
 
 .tp-no-results-icon {
@@ -377,152 +398,7 @@
     font-size: 0.9rem;
 }
 
-/* ---- Modal ---- */
-.tp-modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 300;
-    display: flex;
-    align-items: flex-end;   /* sheet from bottom on mobile */
-    justify-content: center;
-    padding: 0;
-}
 
-.tp-modal {
-    background: var(--ns-bg-white);
-    border-radius: var(--ns-radius-lg) var(--ns-radius-lg) 0 0;
-    box-shadow: 0 -8px 40px rgba(0,0,0,0.2);
-    padding: 1.5rem 1.25rem 2rem;
-    width: 100%;
-    max-width: 520px;
-    position: relative;
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
-/* drag handle */
-.tp-modal::before {
-    content: '';
-    display: block;
-    width: 40px;
-    height: 4px;
-    background: var(--ns-border);
-    border-radius: 2px;
-    margin: 0 auto 1.25rem;
-}
-
-.tp-modal-close {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: var(--ns-bg);
-    border: none;
-    font-size: 1.25rem;
-    line-height: 1;
-    cursor: pointer;
-    color: var(--ns-text-muted);
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s;
-}
-
-.tp-modal-close:hover {
-    background: var(--ns-border);
-    color: var(--ns-text);
-}
-
-.tp-modal-title {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: var(--ns-text);
-    margin: 0 0 1.25rem;
-}
-
-.tp-modal-body {
-    margin-bottom: 1.5rem;
-}
-
-.tp-confirmation-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 0.6rem 0;
-    border-bottom: 1px solid var(--ns-bg);
-    gap: 1rem;
-    font-size: 0.95rem;
-}
-
-.tp-confirmation-row--total {
-    border-top: 2px solid var(--ns-border);
-    border-bottom: none;
-    padding-top: 0.9rem;
-    margin-top: 0.3rem;
-}
-
-.tp-confirmation-label {
-    color: var(--ns-text-muted);
-    font-weight: 500;
-    flex-shrink: 0;
-}
-
-.tp-confirmation-value {
-    color: var(--ns-text);
-    font-weight: 600;
-    text-align: right;
-}
-
-.tp-price-total {
-    font-size: 1.25rem;
-    font-weight: 800;
-}
-
-.tp-modal-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-}
-
-/* NS-style primary = yellow pill */
-.tp-btn-primary {
-    width: 100%;
-    padding: 0.85rem 1.5rem;
-    border: none;
-    border-radius: var(--ns-radius-pill);
-    background: var(--ns-yellow);
-    color: var(--ns-text);
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.15s;
-    font-family: inherit;
-}
-
-.tp-btn-primary:hover { background: var(--ns-yellow-hover); }
-
-/* Secondary = ghost */
-.tp-btn-secondary {
-    width: 100%;
-    padding: 0.85rem 1.5rem;
-    border: 2px solid var(--ns-border);
-    border-radius: var(--ns-radius-pill);
-    background: var(--ns-bg-white);
-    color: var(--ns-text-mid);
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-    font-family: inherit;
-}
-
-.tp-btn-secondary:hover {
-    background: var(--ns-bg);
-    border-color: var(--ns-text-muted);
-}
 
 /* ================================================================
    Tablet & Desktop enhancements (min-width: 640px)
@@ -568,29 +444,6 @@
         width: auto;
         flex: 0 0 auto;
         padding: 0 1.75rem;
-    }
-
-    /* Modal as centered dialog on desktop */
-    .tp-modal-backdrop {
-        align-items: center;
-        padding: 1rem;
-    }
-
-    .tp-modal {
-        border-radius: var(--ns-radius-lg);
-        padding: 2rem;
-    }
-
-    .tp-modal::before { display: none; }
-
-    .tp-modal-actions {
-        flex-direction: row-reverse;
-    }
-
-    .tp-btn-primary,
-    .tp-btn-secondary {
-        width: auto;
-        flex: 1;
     }
 
     .tp-results-header {

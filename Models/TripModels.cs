@@ -94,4 +94,22 @@ public record ScheduledTrip
                 : $"{d.Minutes}m";
         }
     }
+
+    // Compat aliases — keep Home.razor markup compilable without markup changes
+    public TimeOnly Departure      => PlannedDeparture;
+    public TimeOnly Arrival        => PlannedArrival;
+    public decimal  PricePerPerson => 0m;
+    public IReadOnlyList<JourneySegment> Segments =>
+        CommercialCategory is { Length: > 0 } cat
+            ? [new JourneySegment(
+                  cat switch
+                  {
+                      "EIP" or "EIC" => TrainType.HighSpeed,
+                      "IC"  or "TLK" => TrainType.InterCity,
+                      "NJ"  or "EN"  => TrainType.Night,
+                      _              => TrainType.Regional,
+                  },
+                  TrainName,
+                  DeparturePlatform ?? "")]
+            : [];
 }

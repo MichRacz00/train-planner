@@ -1,11 +1,13 @@
 using System.Diagnostics;
-using train_planner.Models;
+using Microsoft.Extensions.Logging;
+using TrainPlanner.Models;
 
-namespace train_planner.Services;
+namespace TrainPlanner.Services;
 
-public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
+public class CsaPathfinder(IPlkTripService tripService, ILogger<CsaPathfinder> logger) : ITripPathfinder
 {
     private readonly IPlkTripService _tripService = tripService;
+    private readonly ILogger<CsaPathfinder> _logger = logger;
     private List<PlkRouteDto> _allRoutes = new();
 
     // Convert TimeSpan to TimeOnly, wrapping times > 24 hours back to 0-24 range
@@ -48,18 +50,18 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
     {
         if (_allRoutes.Count == 0)
         {
-            Console.WriteLine($"[CSA] Phase 1: Loading routes...");
+            _logger.LogDebug("Phase 1: Loading routes...");
             var routes = await _tripService.GetAllRoutesAsync(travelDate);
-            Console.WriteLine($"[CSA] Phase 1: Loaded {routes.Count} routes");
+            _logger.LogDebug("Phase 1: Loaded {RouteCount} routes", routes.Count);
             _allRoutes = routes
                 .GroupBy(r => new { r.ScheduleId, r.OrderId })
                 .Select(g => g.First())
                 .ToList();
-            Console.WriteLine($"[CSA] Phase 1: After deduplication: {_allRoutes.Count} routes");
+            _logger.LogDebug("Phase 1: After deduplication: {RouteCount} routes", _allRoutes.Count);
         }
         else
         {
-            Console.WriteLine($"[CSA] Phase 1: Loaded from cache {_allRoutes.Count} routes");
+            _logger.LogDebug("Phase 1: Loaded from cache {RouteCount} routes", _allRoutes.Count);
         }
         
         return _allRoutes;
@@ -69,7 +71,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         int fromStationId, int toStationId, DateOnly travelDate, TimeOnly departureAfter = default, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
-        Console.WriteLine($"[CSA] Starting search: {fromStationId} -> {toStationId} on {travelDate}");
+        _logger.LogInformation("Starting search: {FromStationId} -> {ToStationId} on {TravelDate}", fromStationId, toStationId, travelDate);
 
         // Phase 1: Load all routes and flatten into connections
         var routes = await GetAllRoutes(travelDate);
@@ -135,35 +137,35 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 
             // Progress update every 50 routes
             if (routesProcessed % 50 == 0)
-                Console.WriteLine($"[CSA] Progress: {routesProcessed} routes processed, {connections.Count} total connections so far");
+                _logger.LogDebug("Progress: {RoutesProcessed} routes processed, {ConnectionCount} total connections so far", routesProcessed, connections.Count);
 
             if (connectionsAdded > 0)
-                Console.WriteLine($"[CSA] Route {route.ScheduleId}/{route.OrderId}: {connectionsAdded} connections");
+                _logger.LogDebug("Route {ScheduleId}/{OrderId}: {ConnectionsAdded} connections", route.ScheduleId, route.OrderId, connectionsAdded);
         }
 
-        Console.WriteLine($"[CSA] Phase 1 complete: {routesProcessed} routes processed, {routesSkipped} skipped, {connections.Count} total connections");
+        _logger.LogInformation("Phase 1 complete: {RoutesProcessed} routes processed, {RoutesSkipped} skipped, {ConnectionCount} total connections", routesProcessed, routesSkipped, connections.Count);
 
         // Phase 2: Sort connections by departure time (CSA requirement)
-        Console.WriteLine($"[CSA] Phase 2: Sorting {connections.Count} connections by departure time...");
+        _logger.LogDebug("Phase 2: Sorting {ConnectionCount} connections by departure time...", connections.Count);
         connections.Sort((a, b) => a.DepartureTime.CompareTo(b.DepartureTime));
-        Console.WriteLine($"[CSA] Phase 2: Sort complete");
+        _logger.LogInformation("Phase 2: Sort complete");
 
         // Phase 3a: Find up to 4 "after" routes
-        Console.WriteLine($"[CSA] Phase 3a: Finding after routes from {departureAfter}...");
+        _logger.LogInformation("Phase 3a: Finding after routes from {DepartureAfter}...", departureAfter);
         var afterJourneys = new List<Journey>();
         var nextDep = departureAfter.ToTimeSpan();
         for (var i = 0; i < 4; i++)
         {
-            var journey = RunSingleScan(connections, fromStationId, toStationId, nextDep);
+            var journey = RunSingleScan(connections, fromStationId, toStationId, nextDep, _logger);
             if (journey == null) break;
             afterJourneys.Add(journey);
             nextDep = journey.Connections[0].DepartureTime + TimeSpan.FromTicks(1);
-            Console.WriteLine($"[CSA] After route {i + 1}: dep {ToTimeOnly(journey.Connections[0].DepartureTime):HH:mm}, {journey.Transfers} transfers");
+            _logger.LogDebug("After route {Index}: dep {DepartureTime}, {Transfers} transfers", i + 1, ToTimeOnly(journey.Connections[0].DepartureTime), journey.Transfers);
         }
-        Console.WriteLine($"[CSA] Phase 3a: found {afterJourneys.Count} after routes");
+        _logger.LogInformation("Phase 3a: found {Count} after routes", afterJourneys.Count);
 
         // Phase 3b: Find up to 3 "before" routes
-        Console.WriteLine($"[CSA] Phase 3b: Finding before routes before {departureAfter}...");
+        _logger.LogInformation("Phase 3b: Finding before routes before {DepartureAfter}...", departureAfter);
         var beforeJourneys = new List<Journey>();
         var beforeCutoff = departureAfter.ToTimeSpan();
         for (var i = 0; i < 3; i++)
@@ -175,16 +177,16 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
                 .Max();
             if (latestDep == TimeSpan.MinValue) break;
 
-            var journey = RunSingleScan(connections, fromStationId, toStationId, latestDep);
+            var journey = RunSingleScan(connections, fromStationId, toStationId, latestDep, _logger);
             if (journey == null || journey.Connections[0].DepartureTime >= beforeCutoff) break;
             beforeJourneys.Add(journey);
             beforeCutoff = journey.Connections[0].DepartureTime;
-            Console.WriteLine($"[CSA] Before route {i + 1}: dep {ToTimeOnly(journey.Connections[0].DepartureTime):HH:mm}, {journey.Transfers} transfers");
+            _logger.LogDebug("Before route {Index}: dep {DepartureTime}, {Transfers} transfers", i + 1, ToTimeOnly(journey.Connections[0].DepartureTime), journey.Transfers);
         }
-        Console.WriteLine($"[CSA] Phase 3b: found {beforeJourneys.Count} before routes");
+        _logger.LogInformation("Phase 3b: found {Count} before routes", beforeJourneys.Count);
 
         // Phase 4: Merge, deduplicate, order, return up to 7
-        Console.WriteLine($"[CSA] Phase 4: Merging and deduplicating results...");
+        _logger.LogInformation("Phase 4: Merging and deduplicating results...");
         var seenRoutes = new HashSet<string>();
         var results = new List<MultiSegmentTrip>();
 
@@ -206,7 +208,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         results = results.OrderBy(t => t.DepartureTime).ToList();
 
         sw.Stop();
-        Console.WriteLine($"[CSA] Complete: returned {results.Count} results ({beforeJourneys.Count} before, {afterJourneys.Count} after) in {sw.ElapsedMilliseconds}ms");
+        _logger.LogInformation("Complete: returned {ResultCount} results ({BeforeCount} before, {AfterCount} after) in {ElapsedMs}ms", results.Count, beforeJourneys.Count, afterJourneys.Count, sw.ElapsedMilliseconds);
 
         return results;
     }
@@ -218,7 +220,8 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         List<Connection> sortedConnections,
         int fromStationId,
         int toStationId,
-        TimeSpan earliestDeparture)
+        TimeSpan earliestDeparture,
+        ILogger<CsaPathfinder> logger)
     {
         var labels = new Dictionary<int, Label>();
         var predecessors = new Dictionary<Connection, Connection?>();
@@ -250,7 +253,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 
             if (conn.ToStationId == toStationId)
             {
-                return ReconstructJourney(conn, predecessors);
+                return ReconstructJourney(conn, predecessors, logger);
             }
         }
 
@@ -260,7 +263,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
     /// <summary>
     /// Reconstructs the journey by walking backwards through the predecessors mapping.
     /// </summary>
-    private static Journey ReconstructJourney(Connection finalConnection, Dictionary<Connection, Connection?> predecessors)
+    private static Journey ReconstructJourney(Connection finalConnection, Dictionary<Connection, Connection?> predecessors, ILogger<CsaPathfinder> logger)
     {
         var path = new List<Connection>();
 
@@ -271,7 +274,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         // Reverse to get chronological order
         path.Reverse();
 
-        Console.WriteLine($"[CSA] Reconstructing journey with {path.Count} connections");
+        logger.LogDebug("Reconstructing journey with {ConnectionCount} connections", path.Count);
 
         // Count train changes (transfers)
         var transfers = 0;
@@ -281,11 +284,11 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
                 path[i].OrderId != path[i - 1].OrderId)
             {
                 transfers++;
-                Console.WriteLine($"[CSA] Transfer at station {path[i].FromStationId}: {path[i - 1].TrainName} -> {path[i].TrainName}");
+                logger.LogDebug("Transfer at station {StationId}: {PreviousTrainName} -> {NextTrainName}", path[i].FromStationId, path[i - 1].TrainName, path[i].TrainName);
             }
         }
 
-        Console.WriteLine($"[CSA] Journey reconstruction complete: {path.Count} connections, {transfers} transfers");
+        logger.LogDebug("Journey reconstruction complete: {ConnectionCount} connections, {Transfers} transfers", path.Count, transfers);
 
         return new Journey(path, transfers);
     }

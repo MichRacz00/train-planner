@@ -1,6 +1,6 @@
-using train_planner.Models;
+using TrainPlanner.Models;
 
-namespace train_planner.Services;
+namespace TrainPlanner.Services;
 
 public interface ITripPathfinder
 {

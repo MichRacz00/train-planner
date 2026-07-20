@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
-using train_planner.Components;
-using train_planner.Services;
+using TrainPlanner.Components;
+using TrainPlanner.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

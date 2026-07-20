@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace train_planner.Models;
+namespace TrainPlanner.Models;
 
 // ── GET /api/v1/dictionaries/stations ──────────────────────────────────────────
 

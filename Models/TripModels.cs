@@ -1,4 +1,4 @@
-namespace train_planner.Models;
+namespace TrainPlanner.Models;
 
 public record Station(string Code, string Name, string City);
 

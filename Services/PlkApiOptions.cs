@@ -1,4 +1,4 @@
-namespace train_planner.Services;
+namespace TrainPlanner.Services;
 
 public class PlkApiOptions
 {

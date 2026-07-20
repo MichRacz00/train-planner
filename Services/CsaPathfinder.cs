@@ -40,17 +40,23 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         List<Connection> connections, int from, int to, TimeSpan startDep, int count)
     {
         var journeys = new List<Journey>();
+        var seen = new HashSet<string>();
         var nextDep = startDep;
+        var dayEnd = TimeSpan.FromHours(24);
 
-        for (var i = 0; i < count; i++)
+        while (journeys.Count < count && nextDep < dayEnd)
         {
             var journey = CsaAlgorithm.FindEarliestArrival(connections, from, to, nextDep);
             if (journey == null) break;
 
-            journeys.Add(journey);
             nextDep = journey.Connections[0].DepartureTime + TimeSpan.FromTicks(1);
+
+            var key = JourneyKey(journey);
+            if (!seen.Add(key)) continue;
+
+            journeys.Add(journey);
             logger.LogDebug("After route {Index}: dep {DepartureTime}, {Transfers} transfers",
-                i + 1, ToTimeOnly(journey.Connections[0].DepartureTime), journey.Transfers);
+                journeys.Count, ToTimeOnly(journey.Connections[0].DepartureTime), journey.Transfers);
         }
 
         return journeys;
@@ -60,9 +66,10 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         List<Connection> connections, int from, int to, TimeSpan cutoff, int count)
     {
         var journeys = new List<Journey>();
+        var seen = new HashSet<string>();
         var beforeCutoff = cutoff;
 
-        for (var i = 0; i < count; i++)
+        while (journeys.Count < count)
         {
             var latestDep = connections
                 .Where(c => c.FromStationId == from && c.DepartureTime < beforeCutoff)
@@ -75,10 +82,14 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
             var journey = CsaAlgorithm.FindEarliestArrival(connections, from, to, latestDep);
             if (journey == null || journey.Connections[0].DepartureTime >= beforeCutoff) break;
 
-            journeys.Add(journey);
             beforeCutoff = journey.Connections[0].DepartureTime;
+
+            var key = JourneyKey(journey);
+            if (!seen.Add(key)) continue;
+
+            journeys.Add(journey);
             logger.LogDebug("Before route {Index}: dep {DepartureTime}, {Transfers} transfers",
-                i + 1, ToTimeOnly(journey.Connections[0].DepartureTime), journey.Transfers);
+                journeys.Count, ToTimeOnly(journey.Connections[0].DepartureTime), journey.Transfers);
         }
 
         return journeys;
@@ -94,7 +105,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         {
             if (results.Count >= maxResults) break;
 
-            var key = string.Join("|", journey.Connections.Select(c => $"{c.ScheduleId}:{c.OrderId}"));
+            var key = JourneyKey(journey);
             if (!seen.Add(key)) continue;
 
             var trip = BuildTrip(journey);
@@ -104,6 +115,9 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         results.Sort((a, b) => a.DepartureTime.CompareTo(b.DepartureTime));
         return results;
     }
+
+    private static string JourneyKey(Journey journey)
+        => string.Join("|", journey.Connections.Select(c => $"{c.ScheduleId}:{c.OrderId}"));
 
     private static MultiSegmentTrip? BuildTrip(Journey journey)
     {

@@ -1,9 +1,10 @@
-using train_planner.Models;
+using TrainPlanner.Models;
 
-namespace train_planner.Services;
+namespace TrainPlanner.Services;
 
 public interface IPlkTripService
 {
     Task<IReadOnlyList<PlkStation>> GetStationsAsync(string? search = null, int pageSize = 500);
     Task<List<ScheduledTrip>> SearchTripsAsync(PlkTripSearchParams searchParams);
+    Task<List<PlkRouteDto>> GetAllRoutesAsync(DateOnly date);
 }

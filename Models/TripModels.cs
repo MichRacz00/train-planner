@@ -1,4 +1,4 @@
-namespace train_planner.Models;
+namespace TrainPlanner.Models;
 
 public record Station(string Code, string Name, string City);
 
@@ -55,6 +55,7 @@ public record PlkTripSearchParams
     public int FromStationId { get; set; }
     public int ToStationId { get; set; }
     public DateOnly TravelDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+    public TimeOnly DepartureTime { get; set; } = TimeOnly.FromTimeSpan(TimeSpan.Zero);
 }
 
 public record ScheduledTrip
@@ -110,3 +111,26 @@ public record ScheduledTrip
                   DeparturePlatform ?? "")]
             : [];
 }
+
+// A single leg of a multi-segment journey
+public record TripSegment(
+    int ScheduleId,
+    int OrderId,
+    string TrainName,
+    string CarrierCode,
+    string CommercialCategory,
+    PlkStation From,
+    PlkStation To,
+    TimeOnly PlannedDeparture,
+    TimeOnly PlannedArrival,
+    string? DeparturePlatform,
+    string? ArrivalPlatform);
+
+// A complete multi-segment journey produced by the CSA pathfinder
+public record MultiSegmentTrip(
+    IReadOnlyList<TripSegment> Segments,
+    TimeOnly DepartureTime,
+    TimeOnly ArrivalTime,
+    int Transfers,
+    TimeSpan TotalDuration,
+    TimeSpan TransferTime);

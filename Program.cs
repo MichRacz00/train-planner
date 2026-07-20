@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
-using train_planner.Components;
-using train_planner.Services;
+using TrainPlanner.Components;
+using TrainPlanner.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +21,7 @@ builder.Services.AddHttpClient("PlkApi", (sp, client) =>
 });
 
 builder.Services.AddScoped<IPlkTripService, PlkTripService>();
+builder.Services.AddScoped<ITripPathfinder, CsaPathfinder>();
 
 
 var app = builder.Build();

@@ -1,7 +1,7 @@
 using System.Text.Json;
-using train_planner.Models;
+using TrainPlanner.Models;
 
-namespace train_planner.Services;
+namespace TrainPlanner.Services;
 
 public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripService
 {
@@ -172,5 +172,14 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
         ts = TimeSpan.Zero;
         if (string.IsNullOrEmpty(raw)) return false;
         return TimeSpan.TryParse(raw, out ts);
+    }
+
+    public async Task<List<PlkRouteDto>> GetAllRoutesAsync(DateOnly date)
+    {
+        var client = CreateClient();
+        var url = $"/api/v1/schedules?dateFrom={date:yyyy-MM-dd}&dateTo={date:yyyy-MM-dd}&fullRoute=true&dictionaries=false";
+        var raw = await client.GetStringAsync(url);
+        var resp = JsonSerializer.Deserialize<PlkScheduleResponse>(raw, JsonOptions);
+        return resp?.Routes ?? [];
     }
 }

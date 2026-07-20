@@ -76,11 +76,17 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
                 .Select(c => c.DepartureTime)
                 .DefaultIfEmpty(TimeSpan.MinValue)
                 .Max();
-
+            
             if (latestDep == TimeSpan.MinValue) break;
-
+            
             var journey = CsaAlgorithm.FindEarliestArrival(connections, from, to, latestDep);
-            if (journey == null || journey.Connections[0].DepartureTime >= beforeCutoff) break;
+            if (journey == null) break;
+            if (journey.Connections[0].DepartureTime >= beforeCutoff)
+            {
+                // This departure slot doesn't reach the destination before cutoff, try earlier
+                beforeCutoff = latestDep;
+                continue;
+            }
 
             beforeCutoff = journey.Connections[0].DepartureTime;
 

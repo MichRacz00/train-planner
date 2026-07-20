@@ -6,8 +6,10 @@ namespace TrainPlanner.Services;
 /// <summary>
 /// Singleton cache for PLK route data, keyed by date.
 /// Survives across requests so the expensive full-schedule fetch happens at most once per date.
+/// Uses IServiceScopeFactory to resolve the Scoped IPlkTripService on demand,
+/// avoiding the Singleton-consumes-Scoped lifetime violation.
 /// </summary>
-public class RouteCache(IPlkTripService tripService, ILogger<RouteCache> logger)
+public class RouteCache(IServiceScopeFactory scopeFactory, ILogger<RouteCache> logger)
 {
     private readonly Dictionary<DateOnly, List<PlkRouteDto>> _cache = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -28,6 +30,8 @@ public class RouteCache(IPlkTripService tripService, ILogger<RouteCache> logger)
                 return cached;
 
             logger.LogDebug("RouteCache: loading routes for {Date}...", date);
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var tripService = scope.ServiceProvider.GetRequiredService<IPlkTripService>();
             var routes = await tripService.GetAllRoutesAsync(date);
 
             var deduplicated = routes

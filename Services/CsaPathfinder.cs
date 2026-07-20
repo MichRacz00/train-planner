@@ -111,15 +111,10 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
                 if (!TryParseTime(to.ArrivalTime, out var arrTime))
                     continue;
 
-                // Convert to TimeSpan for midnight-safe calculations
-                var depTimeSpan = depTime.ToTimeSpan();
-                var arrTimeSpan = arrTime.ToTimeSpan();
-
-                // If arrival < departure, train crosses midnight - add 24 hours
-                if (arrTimeSpan < depTimeSpan)
-                {
-                    arrTimeSpan = arrTimeSpan.Add(TimeSpan.FromHours(24));
-                }
+                var depDay = from.DepartureDay ?? 0;
+                var arrDay = to.ArrivalDay ?? 0;
+                var depTimeSpan = depTime.ToTimeSpan() + TimeSpan.FromHours(24 * depDay);
+                var arrTimeSpan = arrTime.ToTimeSpan() + TimeSpan.FromHours(24 * arrDay);
 
                 connections.Add(new Connection
                 {
@@ -153,168 +148,113 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         connections.Sort((a, b) => a.DepartureTime.CompareTo(b.DepartureTime));
         Console.WriteLine($"[CSA] Phase 2: Sort complete");
 
-        // Phase 3: CSA scan - single pass through sorted connections
-        Console.WriteLine($"[CSA] Phase 3: Starting CSA scan...");
+        // Phase 3a: Find up to 4 "after" routes
+        Console.WriteLine($"[CSA] Phase 3a: Finding after routes from {departureAfter}...");
+        var afterJourneys = new List<Journey>();
+        var nextDep = departureAfter.ToTimeSpan();
+        for (var i = 0; i < 4; i++)
+        {
+            var journey = RunSingleScan(connections, fromStationId, toStationId, nextDep);
+            if (journey == null) break;
+            afterJourneys.Add(journey);
+            nextDep = journey.Connections[0].DepartureTime + TimeSpan.FromTicks(1);
+            Console.WriteLine($"[CSA] After route {i + 1}: dep {ToTimeOnly(journey.Connections[0].DepartureTime):HH:mm}, {journey.Transfers} transfers");
+        }
+        Console.WriteLine($"[CSA] Phase 3a: found {afterJourneys.Count} after routes");
+
+        // Phase 3b: Find up to 3 "before" routes
+        Console.WriteLine($"[CSA] Phase 3b: Finding before routes before {departureAfter}...");
+        var beforeJourneys = new List<Journey>();
+        var beforeCutoff = departureAfter.ToTimeSpan();
+        for (var i = 0; i < 3; i++)
+        {
+            var latestDep = connections
+                .Where(c => c.FromStationId == fromStationId && c.DepartureTime < beforeCutoff)
+                .Select(c => c.DepartureTime)
+                .DefaultIfEmpty(TimeSpan.MinValue)
+                .Max();
+            if (latestDep == TimeSpan.MinValue) break;
+
+            var journey = RunSingleScan(connections, fromStationId, toStationId, latestDep);
+            if (journey == null || journey.Connections[0].DepartureTime >= beforeCutoff) break;
+            beforeJourneys.Add(journey);
+            beforeCutoff = journey.Connections[0].DepartureTime;
+            Console.WriteLine($"[CSA] Before route {i + 1}: dep {ToTimeOnly(journey.Connections[0].DepartureTime):HH:mm}, {journey.Transfers} transfers");
+        }
+        Console.WriteLine($"[CSA] Phase 3b: found {beforeJourneys.Count} before routes");
+
+        // Phase 4: Merge, deduplicate, order, return up to 7
+        Console.WriteLine($"[CSA] Phase 4: Merging and deduplicating results...");
+        var seenRoutes = new HashSet<string>();
+        var results = new List<MultiSegmentTrip>();
+
+        var allJourneys = beforeJourneys.Concat(afterJourneys);
+        foreach (var journey in allJourneys)
+        {
+            if (results.Count >= 7) break;
+
+            var routeKey = GetJourneyKey(journey);
+            if (seenRoutes.Contains(routeKey)) continue;
+
+            var trip = BuildTrip(journey);
+            if (trip == null) continue;
+
+            seenRoutes.Add(routeKey);
+            results.Add(trip);
+        }
+
+        results = results.OrderBy(t => t.DepartureTime).ToList();
+
+        sw.Stop();
+        Console.WriteLine($"[CSA] Complete: returned {results.Count} results ({beforeJourneys.Count} before, {afterJourneys.Count} after) in {sw.ElapsedMilliseconds}ms");
+
+        return results;
+    }
+
+    /// <summary>
+    /// Runs a single CSA scan from a given earliest departure time, returning the earliest-arrival journey.
+    /// </summary>
+    private static Journey? RunSingleScan(
+        List<Connection> sortedConnections,
+        int fromStationId,
+        int toStationId,
+        TimeSpan earliestDeparture)
+    {
         var labels = new Dictionary<int, Label>();
         var predecessors = new Dictionary<Connection, Connection?>();
-        var destinationArrivals = new List<(TimeSpan ArrivalTime, Journey Journey)>();
-        var connectionsEvaluated = 0;
-        var connectionsBoarded = 0;
-        var connectionsSkipped = 0;
 
-        // Initialize: start from midnight (00:00) to discover ALL routes throughout the day
-        // Post-filtering will organize them into before/after the requested departureAfter time
         labels[fromStationId] = new Label
         {
-            Arrival = TimeOnly.MinValue.ToTimeSpan(),  // Always start from 00:00
+            Arrival = earliestDeparture,
             LastConnection = null!
         };
-        Console.WriteLine($"[CSA] Initialized arrival at station {fromStationId} at 00:00 (exploring full day)");
-        Console.WriteLine($"[CSA] Will filter routes by departure time: before {departureAfter}, after {departureAfter}");
 
-        foreach (var conn in connections)
+        foreach (var conn in sortedConnections)
         {
-            // Progress update every 1000 connections
-            if (connectionsEvaluated % 1000 == 0)
-                Console.WriteLine($"[CSA] Scan progress: {connectionsEvaluated}/{connections.Count} connections evaluated, {connectionsBoarded} boarded");
-
-            connectionsEvaluated++;
-
-            // Can we board this connection?
             if (!labels.TryGetValue(conn.FromStationId, out var label))
-            {
-                connectionsSkipped++;
-                continue; // We haven't reached the boarding station yet
-            }
+                continue;
 
             if (label.Arrival > conn.DepartureTime)
-            {
-                connectionsSkipped++;
-                continue; // We arrived after this train departed
-            }
+                continue;
 
-            // Is this an improvement?
-            // For intermediate stations: only keep earliest arrival (optimization)
-            // For destination station: allow all arrivals (we'll sort by departure time later)
-            if (conn.ToStationId != toStationId && labels.TryGetValue(conn.ToStationId, out var currentLabel))
-            {
-                // Normalize both times to 0-86400 range (within 1 day) for comparison
-                // This handles multi-day TimeSpan values correctly
-                const long ticksPerDay = 24L * 3600L * 10_000_000L;
-                var newArrivalNormalized = new TimeSpan(conn.ArrivalTime.Ticks % ticksPerDay);
-                var currentArrivalNormalized = new TimeSpan(currentLabel.Arrival.Ticks % ticksPerDay);
-                
-                if (newArrivalNormalized >= currentArrivalNormalized)
-                {
-                    var connArrTimeOnly = ToTimeOnly(conn.ArrivalTime);
-                    var labelArrTimeOnly = ToTimeOnly(currentLabel.Arrival);
-                    Console.WriteLine($"[CSA] Arrival at {conn.ToStationId} at {connArrTimeOnly:HH:mm} is worse than existing {labelArrTimeOnly:HH:mm}, skipping");
-                    connectionsSkipped++;
-                    continue; // We already have a better (earlier) arrival at intermediate station
-                }
-            }
+            if (labels.TryGetValue(conn.ToStationId, out var current) && conn.ArrivalTime >= current.Arrival)
+                continue;
 
-            // Capture the exact predecessor chain
-            labels.TryGetValue(conn.FromStationId, out var prevLabel);
-            predecessors[conn] = prevLabel?.LastConnection;
+            predecessors[conn] = label.LastConnection;
 
-            // We can board! Update label at this station
             labels[conn.ToStationId] = new Label
             {
                 Arrival = conn.ArrivalTime,
                 LastConnection = conn
             };
 
-            connectionsBoarded++;
-            var depTimeOnly = ToTimeOnly(conn.DepartureTime);
-            var arrTimeOnly = ToTimeOnly(conn.ArrivalTime);
-            Console.WriteLine($"[CSA] Boarded connection: {conn.TrainName} {conn.FromStationId}@{depTimeOnly:HH:mm} -> {conn.ToStationId}@{arrTimeOnly:HH:mm}");
-
-            // Collect if we reached destination (don't stop, continue scanning)
             if (conn.ToStationId == toStationId)
             {
-                var discoveredJourney = ReconstructJourney(conn, predecessors);
-                destinationArrivals.Add((conn.ArrivalTime, discoveredJourney));
-                Console.WriteLine($"[CSA] Found route to destination with {discoveredJourney.Transfers} transfers, continuing scan...");
+                return ReconstructJourney(conn, predecessors);
             }
         }
 
-        Console.WriteLine($"[CSA] Phase 3 complete: evaluated {connectionsEvaluated}, boarded {connectionsBoarded}, skipped {connectionsSkipped}, found {destinationArrivals.Count} routes to destination");
-
-        // Phase 4: Filter routes by time bands
-        Console.WriteLine($"[CSA] Phase 4: Filtering {destinationArrivals.Count} routes by time bands...");
-        
-        if (destinationArrivals.Count == 0)
-        {
-            Console.WriteLine($"[CSA] No path found to destination");
-            sw.Stop();
-            Console.WriteLine($"[CSA] Complete: returned 0 results in {sw.ElapsedMilliseconds}ms");
-            return [];
-        }
-
-        var departureTimeThreshold = departureAfter.ToTimeSpan();
-
-        Console.WriteLine($"[CSA] Phase 4: Sorting {destinationArrivals.Count} routes by departure time proximity to {ToTimeOnly(departureTimeThreshold):HH:mm}...");
-
-        // Separate routes into those departing before and after the requested time
-        var beforeRoutes = destinationArrivals
-            .Where(da => da.Journey.Connections[0].DepartureTime < departureTimeThreshold)
-            .OrderByDescending(da => da.Journey.Connections[0].DepartureTime)  // Latest before threshold first (closest to requested time)
-            .ToList();
-
-        var afterRoutes = destinationArrivals
-            .Where(da => da.Journey.Connections[0].DepartureTime >= departureTimeThreshold)
-            .OrderBy(da => da.Journey.Connections[0].DepartureTime)  // Earliest after threshold first (closest to requested time)
-            .ToList();
-
-        Console.WriteLine($"[CSA] Found {beforeRoutes.Count} routes before {ToTimeOnly(departureTimeThreshold):HH:mm}, {afterRoutes.Count} routes after");
-
-        var seenRoutes = new HashSet<string>();
-        var beforeTrips = new List<MultiSegmentTrip>();
-        var afterTrips = new List<MultiSegmentTrip>();
-
-        // Collect up to 3 "before" routes (sorted by relevance: latest before time first)
-        foreach (var (_, journey) in beforeRoutes)
-        {
-            if (beforeTrips.Count >= 3) break;
-
-            var routeKey = GetJourneyKey(journey);
-            if (seenRoutes.Contains(routeKey)) continue;
-
-            var trip = BuildTrip(journey);
-            if (trip == null) continue;
-
-            seenRoutes.Add(routeKey);
-            beforeTrips.Add(trip);
-            Console.WriteLine($"[CSA] Route {trip.DepartureTime:HH:mm}-{trip.ArrivalTime:HH:mm} added to BEFORE band");
-        }
-
-        // Collect up to 4 "after" routes (sorted by relevance: earliest after time first)
-        foreach (var (_, journey) in afterRoutes)
-        {
-            if (afterTrips.Count >= 4) break;
-
-            var routeKey = GetJourneyKey(journey);
-            if (seenRoutes.Contains(routeKey)) continue;
-
-            var trip = BuildTrip(journey);
-            if (trip == null) continue;
-
-            seenRoutes.Add(routeKey);
-            afterTrips.Add(trip);
-            Console.WriteLine($"[CSA] Route {trip.DepartureTime:HH:mm}-{trip.ArrivalTime:HH:mm} added to AFTER band");
-        }
-
-        var results = beforeTrips
-            .Concat(afterTrips)
-            .OrderBy(t => t.DepartureTime)
-            .Take(7)
-            .ToList();
-
-        sw.Stop();
-        Console.WriteLine($"[CSA] Complete: returned {results.Count} results ({beforeTrips.Count} before, {afterTrips.Count} after) in {sw.ElapsedMilliseconds}ms");
-
-        return results;
+        return null;
     }
 
     /// <summary>

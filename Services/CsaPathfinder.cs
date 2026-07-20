@@ -6,6 +6,7 @@ namespace train_planner.Services;
 public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
 {
     private readonly IPlkTripService _tripService = tripService;
+    private List<PlkRouteDto> _allRoutes = new();
 
     // Convert TimeSpan to TimeOnly, wrapping times > 24 hours back to 0-24 range
     private static TimeOnly ToTimeOnly(TimeSpan ts)
@@ -43,6 +44,27 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         List<Connection> Connections,
         int Transfers);
 
+    private async Task<List<PlkRouteDto>> GetAllRoutes(DateOnly travelDate)
+    {
+        if (_allRoutes.Count == 0)
+        {
+            Console.WriteLine($"[CSA] Phase 1: Loading routes...");
+            var routes = await _tripService.GetAllRoutesAsync(travelDate);
+            Console.WriteLine($"[CSA] Phase 1: Loaded {routes.Count} routes");
+            _allRoutes = routes
+                .GroupBy(r => new { r.ScheduleId, r.OrderId })
+                .Select(g => g.First())
+                .ToList();
+            Console.WriteLine($"[CSA] Phase 1: After deduplication: {_allRoutes.Count} routes");
+        }
+        else
+        {
+            Console.WriteLine($"[CSA] Phase 1: Loaded from cache {_allRoutes.Count} routes");
+        }
+        
+        return _allRoutes;
+    }
+    
     public async Task<IReadOnlyList<MultiSegmentTrip>> FindTripsAsync(
         int fromStationId, int toStationId, DateOnly travelDate, TimeOnly departureAfter = default, CancellationToken ct = default)
     {
@@ -50,16 +72,7 @@ public class CsaPathfinder(IPlkTripService tripService) : ITripPathfinder
         Console.WriteLine($"[CSA] Starting search: {fromStationId} -> {toStationId} on {travelDate}");
 
         // Phase 1: Load all routes and flatten into connections
-        Console.WriteLine($"[CSA] Phase 1: Loading routes...");
-        var routes = await _tripService.GetAllRoutesAsync(travelDate);
-        Console.WriteLine($"[CSA] Phase 1: Loaded {routes.Count} routes");
-
-        // Deduplicate routes by ScheduleId/OrderId
-        routes = routes
-            .GroupBy(r => new { r.ScheduleId, r.OrderId })
-            .Select(g => g.First())
-            .ToList();
-        Console.WriteLine($"[CSA] Phase 1: After deduplication: {routes.Count} routes");
+        var routes = await GetAllRoutes(travelDate);
 
         var connections = new List<Connection>();
         var routesProcessed = 0;

@@ -17,21 +17,36 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         var routes = await routeCache.GetRoutesAsync(travelDate, ct);
         var connections = ConnectionBuilder.Build(routes, travelDate, logger, ct);
 
+        // Walk forward through the day, one CSA call per distinct departure slot.
+        // Keep the best (shortest-duration) journey per arrival minute.
+        var best = new Dictionary<DateTime, Journey>();
         var seen = new HashSet<string>();
+        var nextDep = departureAfter.ToTimeSpan();
+        var dayEnd = TimeSpan.FromHours(24);
 
-        // Find up to 4 routes departing at or after the requested time
-        logger.LogInformation("Phase 3a: Finding after routes from {DepartureAfter}...", departureAfter);
-        var bestByArrivalHour = FindAfterJourneys(connections, fromStationId, toStationId, departureAfter.ToTimeSpan(), count: 4, seen);
-        logger.LogInformation("Phase 3a: found {Count} after routes", bestByArrivalHour.Count);
+        while (nextDep < dayEnd)
+        {
+            var journey = CsaAlgorithm.FindEarliestArrival(connections, fromStationId, toStationId, nextDep);
+            if (journey == null) break;
 
-        var afterCount = bestByArrivalHour.Count;
+            nextDep = journey.Connections[0].DepartureTime + TimeSpan.FromTicks(1);
 
-        // Find up to 3 routes departing before the requested time
-        logger.LogInformation("Phase 3b: Finding before routes before {DepartureAfter}...", departureAfter);
-        bestByArrivalHour = FindBeforeJourneys(connections, fromStationId, toStationId, departureAfter.ToTimeSpan(), count: 3, bestByArrivalHour, seen);
-        logger.LogInformation("Phase 3b: found {Count} before routes", bestByArrivalHour.Count - afterCount);
+            var key = JourneyKey(journey);
+            if (!seen.Add(key)) continue;
 
-        var results = BuildAndSort(bestByArrivalHour, maxResults: 7);
+            TryAdd(best, journey, travelDate);
+            logger.LogDebug("Candidate: dep {Dep}, arr {Arr}, {Transfers} transfers",
+                ToTimeOnly(journey.Connections[0].DepartureTime),
+                ToTimeOnly(journey.Connections[^1].ArrivalTime),
+                journey.Transfers);
+        }
+
+        var results = best.Values
+            .OrderBy(j => j.Connections[0].DepartureTime)
+            .Select(BuildTrip)
+            .Where(t => t != null)
+            .Cast<MultiSegmentTrip>()
+            .ToList();
 
         sw.Stop();
         logger.LogInformation("Complete: returned {ResultCount} results in {ElapsedMs}ms",
@@ -40,113 +55,30 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         return results;
     }
 
-    private Dictionary<int, Journey> FindAfterJourneys(
-        List<Connection> connections, int from, int to, TimeSpan startDep, int count, HashSet<string> seen)
+    private static string JourneyKey(Journey journey)
+        => string.Join("|", journey.Connections.Select(c => $"{c.ScheduleId}:{c.OrderId}"));
+
+    private static void TryAdd(Dictionary<DateTime, Journey> best, Journey journey, DateOnly travelDate)
     {
-        var bestByArrivalHour = new Dictionary<int, Journey>();
-        var nextDep = startDep;
-        var dayEnd = TimeSpan.FromHours(24);
-
-        while (nextDep < dayEnd)
-        {
-            if (bestByArrivalHour.Count >= count)
-            {
-                var lastHourEnd = TimeSpan.FromHours(bestByArrivalHour.Keys.Max() + 1);
-                if (nextDep >= lastHourEnd) break;
-            }
-
-            var journey = CsaAlgorithm.FindEarliestArrival(connections, from, to, nextDep);
-            if (journey == null) break;
-
-            nextDep = journey.Connections[0].DepartureTime + TimeSpan.FromTicks(1);
-
-            var key = JourneyKey(journey);
-            if (!seen.Add(key)) continue;
-
-            TryAddToBestByArrivalHour(bestByArrivalHour, journey);
-            logger.LogDebug("After candidate: dep {DepartureTime}, arr {ArrivalTime}, {Transfers} transfers",
-                ToTimeOnly(journey.Connections[0].DepartureTime),
-                ToTimeOnly(journey.Connections[^1].ArrivalTime),
-                journey.Transfers);
-        }
-
-        return bestByArrivalHour;
-    }
-
-    private Dictionary<int, Journey> FindBeforeJourneys(
-        List<Connection> connections, int from, int to, TimeSpan cutoff, int count, Dictionary<int, Journey> bestByArrivalHour, HashSet<string> seen)
-    {
-        var beforeCutoff = cutoff;
-
-        while (true)
-        {
-            if (bestByArrivalHour.Count >= count)
-            {
-                var firstHourStart = TimeSpan.FromHours(bestByArrivalHour.Keys.Min());
-                if (beforeCutoff <= firstHourStart) break;
-            }
-
-            var latestDep = connections
-                .Where(c => c.FromStationId == from && c.DepartureTime < beforeCutoff)
-                .Select(c => c.DepartureTime)
-                .DefaultIfEmpty(TimeSpan.MinValue)
-                .Max();
-
-            if (latestDep == TimeSpan.MinValue) break;
-
-            var journey = CsaAlgorithm.FindEarliestArrival(connections, from, to, latestDep);
-            if (journey == null) break;
-            if (journey.Connections[0].DepartureTime >= beforeCutoff)
-            {
-                beforeCutoff = latestDep;
-                continue;
-            }
-
-            beforeCutoff = journey.Connections[0].DepartureTime;
-
-            var key = JourneyKey(journey);
-            if (!seen.Add(key)) continue;
-
-            TryAddToBestByArrivalHour(bestByArrivalHour, journey);
-            logger.LogDebug("Before candidate: dep {DepartureTime}, arr {ArrivalTime}, {Transfers} transfers",
-                ToTimeOnly(journey.Connections[0].DepartureTime),
-                ToTimeOnly(journey.Connections[^1].ArrivalTime),
-                journey.Transfers);
-        }
-
-        return bestByArrivalHour;
-    }
-
-    private static void TryAddToBestByArrivalHour(Dictionary<int, Journey> best, Journey journey)
-    {
-        var arrivalHour = (int)journey.Connections[^1].ArrivalTime.TotalHours;
+        var key = ArrivalKey(travelDate, journey.Connections[^1].ArrivalTime);
         var duration = journey.Connections[^1].ArrivalTime - journey.Connections[0].DepartureTime;
 
-        if (!best.TryGetValue(arrivalHour, out var existing))
+        if (!best.TryGetValue(key, out var existing))
         {
-            best[arrivalHour] = journey;
+            best[key] = journey;
             return;
         }
 
         var existingDuration = existing.Connections[^1].ArrivalTime - existing.Connections[0].DepartureTime;
         if (duration < existingDuration)
-            best[arrivalHour] = journey;
+            best[key] = journey;
     }
 
-    private static List<MultiSegmentTrip> BuildAndSort(
-        Dictionary<int, Journey> bestByArrivalHour, int maxResults)
+    private static DateTime ArrivalKey(DateOnly travelDate, TimeSpan rawArrival)
     {
-        return bestByArrivalHour.Values
-            .Select(BuildTrip)
-            .Where(t => t != null)
-            .Cast<MultiSegmentTrip>()
-            .OrderBy(t => t.DepartureTime)
-            .Take(maxResults)
-            .ToList();
+        var dt = travelDate.ToDateTime(TimeOnly.MinValue) + rawArrival;
+        return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, 0);
     }
-
-    private static string JourneyKey(Journey journey)
-        => string.Join("|", journey.Connections.Select(c => $"{c.ScheduleId}:{c.OrderId}"));
 
     private static MultiSegmentTrip? BuildTrip(Journey journey)
     {

@@ -39,13 +39,19 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
     private List<Journey> FindAfterJourneys(
         List<Connection> connections, int from, int to, TimeSpan startDep, int count)
     {
-        var journeys = new List<Journey>();
+        var bestByArrivalHour = new Dictionary<int, Journey>();
         var seen = new HashSet<string>();
         var nextDep = startDep;
         var dayEnd = TimeSpan.FromHours(24);
 
-        while (journeys.Count < count && nextDep < dayEnd)
+        while (nextDep < dayEnd)
         {
+            if (bestByArrivalHour.Count >= count)
+            {
+                var lastHourEnd = TimeSpan.FromHours(bestByArrivalHour.Keys.Max() + 1);
+                if (nextDep >= lastHourEnd) break;
+            }
+
             var journey = CsaAlgorithm.FindEarliestArrival(connections, from, to, nextDep);
             if (journey == null) break;
 
@@ -54,36 +60,43 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
             var key = JourneyKey(journey);
             if (!seen.Add(key)) continue;
 
-            journeys.Add(journey);
-            logger.LogDebug("After route {Index}: dep {DepartureTime}, {Transfers} transfers",
-                journeys.Count, ToTimeOnly(journey.Connections[0].DepartureTime), journey.Transfers);
+            TryAddToBestByArrivalHour(bestByArrivalHour, journey);
+            logger.LogDebug("After candidate: dep {DepartureTime}, arr {ArrivalTime}, {Transfers} transfers",
+                ToTimeOnly(journey.Connections[0].DepartureTime),
+                ToTimeOnly(journey.Connections[^1].ArrivalTime),
+                journey.Transfers);
         }
 
-        return journeys;
+        return bestByArrivalHour.Values.ToList();
     }
 
     private List<Journey> FindBeforeJourneys(
         List<Connection> connections, int from, int to, TimeSpan cutoff, int count)
     {
-        var journeys = new List<Journey>();
+        var bestByArrivalHour = new Dictionary<int, Journey>();
         var seen = new HashSet<string>();
         var beforeCutoff = cutoff;
 
-        while (journeys.Count < count)
+        while (true)
         {
+            if (bestByArrivalHour.Count >= count)
+            {
+                var firstHourStart = TimeSpan.FromHours(bestByArrivalHour.Keys.Min());
+                if (beforeCutoff <= firstHourStart) break;
+            }
+
             var latestDep = connections
                 .Where(c => c.FromStationId == from && c.DepartureTime < beforeCutoff)
                 .Select(c => c.DepartureTime)
                 .DefaultIfEmpty(TimeSpan.MinValue)
                 .Max();
-            
+
             if (latestDep == TimeSpan.MinValue) break;
-            
+
             var journey = CsaAlgorithm.FindEarliestArrival(connections, from, to, latestDep);
             if (journey == null) break;
             if (journey.Connections[0].DepartureTime >= beforeCutoff)
             {
-                // This departure slot doesn't reach the destination before cutoff, try earlier
                 beforeCutoff = latestDep;
                 continue;
             }
@@ -93,12 +106,30 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
             var key = JourneyKey(journey);
             if (!seen.Add(key)) continue;
 
-            journeys.Add(journey);
-            logger.LogDebug("Before route {Index}: dep {DepartureTime}, {Transfers} transfers",
-                journeys.Count, ToTimeOnly(journey.Connections[0].DepartureTime), journey.Transfers);
+            TryAddToBestByArrivalHour(bestByArrivalHour, journey);
+            logger.LogDebug("Before candidate: dep {DepartureTime}, arr {ArrivalTime}, {Transfers} transfers",
+                ToTimeOnly(journey.Connections[0].DepartureTime),
+                ToTimeOnly(journey.Connections[^1].ArrivalTime),
+                journey.Transfers);
         }
 
-        return journeys;
+        return bestByArrivalHour.Values.ToList();
+    }
+
+    private static void TryAddToBestByArrivalHour(Dictionary<int, Journey> best, Journey journey)
+    {
+        var arrivalHour = (int)journey.Connections[^1].ArrivalTime.TotalHours;
+        var duration = journey.Connections[^1].ArrivalTime - journey.Connections[0].DepartureTime;
+
+        if (!best.TryGetValue(arrivalHour, out var existing))
+        {
+            best[arrivalHour] = journey;
+            return;
+        }
+
+        var existingDuration = existing.Connections[^1].ArrivalTime - existing.Connections[0].DepartureTime;
+        if (duration < existingDuration)
+            best[arrivalHour] = journey;
     }
 
     private static List<MultiSegmentTrip> MergeAndBuild(

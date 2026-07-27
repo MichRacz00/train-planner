@@ -335,7 +335,7 @@
         }
 
         return new DisplayTrip(
-            $"M-{trip.Legs[0].ScheduleId}-{trip.Legs[0].OrderId}",
+            $"M-{trip.Segments[0].ScheduleId}-{trip.Segments[0].OrderId}",
             trip.DepartureTimeOfDay,
             trip.ArrivalTimeOfDay,
             trip.TotalDuration,

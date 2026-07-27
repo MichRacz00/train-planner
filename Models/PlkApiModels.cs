@@ -19,13 +19,8 @@ public record PlkStationDto(
 
 public record PlkScheduleResponse(
     [property: JsonPropertyName("generatedAt")] DateTime GeneratedAt,
-    [property: JsonPropertyName("period")] PlkDatePeriodDto? Period,
     [property: JsonPropertyName("routes")] List<PlkRouteDto>? Routes,
     [property: JsonPropertyName("dictionaries")] PlkDictionariesDto? Dictionaries);
-
-public record PlkDatePeriodDto(
-    [property: JsonPropertyName("from")] DateTime? From,
-    [property: JsonPropertyName("to")] DateTime? To);
 
 public record PlkRouteDto(
     [property: JsonPropertyName("scheduleId")] int ScheduleId,
@@ -36,8 +31,7 @@ public record PlkRouteDto(
     [property: JsonPropertyName("nationalNumber")] string? NationalNumber,
     [property: JsonPropertyName("commercialCategorySymbol")] string? CommercialCategorySymbol,
     [property: JsonPropertyName("operatingDates")] List<DateOnly>? OperatingDates,
-    [property: JsonPropertyName("stations")] List<PlkStationOnRouteDto>? Stations,
-    [property: JsonPropertyName("connections")] List<PlkConnectionDto>? Connections);
+    [property: JsonPropertyName("stations")] List<PlkStationOnRouteDto>? Stations);
 
 public record PlkStationOnRouteDto(
     [property: JsonPropertyName("stationId")] int StationId,
@@ -57,51 +51,19 @@ public record PlkStationOnRouteDto(
     [property: JsonPropertyName("stopTypeId")] int? StopTypeId,
     [property: JsonPropertyName("stopTypeName")] string? StopTypeName);
 
-public record PlkConnectionDto(
-    [property: JsonPropertyName("id")] string? Id,
-    [property: JsonPropertyName("typeCode")] string? TypeCode,
-    [property: JsonPropertyName("typeName")] string? TypeName,
-    [property: JsonPropertyName("stationId")] int StationId,
-    [property: JsonPropertyName("wagonNumbers")] string? WagonNumbers,
-    [property: JsonPropertyName("train1OrderId")] int Train1OrderId,
-    [property: JsonPropertyName("train1StationOrder")] int Train1StationOrder,
-    [property: JsonPropertyName("train1DayOffset")] int Train1DayOffset,
-    [property: JsonPropertyName("train2OrderId")] int Train2OrderId,
-    [property: JsonPropertyName("train2StationOrder")] int Train2StationOrder,
-    [property: JsonPropertyName("train2DayOffset")] int Train2DayOffset,
-    [property: JsonPropertyName("operatingDates")] List<DateOnly>? OperatingDates);
-
 public record PlkDictionariesDto(
-    [property: JsonPropertyName("stations")] Dictionary<string, PlkStationDictionaryDto>? Stations,
-    [property: JsonPropertyName("services")] Dictionary<string, PlkServiceDictionaryDto>? Services,
+    [property: JsonPropertyName("stations")] Dictionary<string, PlkStationDto>? Stations,
     [property: JsonPropertyName("connectionTypes")] Dictionary<string, string>? ConnectionTypes,
     [property: JsonPropertyName("carriers")] Dictionary<string, string>? Carriers,
     [property: JsonPropertyName("commercialCategories")] Dictionary<string, string>? CommercialCategories,
     [property: JsonPropertyName("stopTypes")] Dictionary<string, string>? StopTypes);
 
-public record PlkStationDictionaryDto(
-    [property: JsonPropertyName("id")] int Id,
-    [property: JsonPropertyName("name")] string? Name);
-
-public record PlkServiceDictionaryDto(
-    [property: JsonPropertyName("code")] string? Code,
-    [property: JsonPropertyName("description")] string? Description);
-
 // ── GET /api/v1/operations ────────────────────────────────────────────────────
 
 public record PlkOperationResponse(
     [property: JsonPropertyName("generatedAt")] DateTime GeneratedAt,
-    [property: JsonPropertyName("pagination")] PlkPaginationDto? Pagination,
     [property: JsonPropertyName("trains")] List<PlkTrainOperationDto>? Trains,
     [property: JsonPropertyName("stations")] Dictionary<string, string>? Stations);
-
-public record PlkPaginationDto(
-    [property: JsonPropertyName("page")] int Page,
-    [property: JsonPropertyName("pageSize")] int PageSize,
-    [property: JsonPropertyName("totalCount")] int TotalCount,
-    [property: JsonPropertyName("totalPages")] int TotalPages,
-    [property: JsonPropertyName("hasNextPage")] bool HasNextPage,
-    [property: JsonPropertyName("hasPreviousPage")] bool HasPreviousPage);
 
 public record PlkTrainOperationDto(
     [property: JsonPropertyName("scheduleId")] int ScheduleId,
@@ -123,13 +85,3 @@ public record PlkOperationStationDto(
     [property: JsonPropertyName("arrivalDelayMinutes")] int? ArrivalDelayMinutes,
     [property: JsonPropertyName("isConfirmed")] bool IsConfirmed,
     [property: JsonPropertyName("isCancelled")] bool IsCancelled);
-
-// ── Error response ─────────────────────────────────────────────────────────────
-
-public record PlkApiError(
-    [property: JsonPropertyName("error")] string? Error,
-    [property: JsonPropertyName("message")] string? Message,
-    [property: JsonPropertyName("details")] object? Details,
-    [property: JsonPropertyName("timestamp")] DateTime? Timestamp,
-    [property: JsonPropertyName("path")] string? Path,
-    [property: JsonPropertyName("traceId")] string? TraceId);

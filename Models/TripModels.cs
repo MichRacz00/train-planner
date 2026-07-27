@@ -74,14 +74,19 @@ public sealed record JourneySegment
         }
     }
     public string CarrierCode { get; init; } = "";
-    public string CommercialCategory { get; init; } = "";
+    private string _rawCategory = "";
+    private TrainCategory _category = TrainCategories.Resolve(null);
+    public string CommercialCategory
+    {
+        get => _rawCategory;
+        init { _rawCategory = value; _category = TrainCategories.Resolve(value); }
+    }
+    public TrainCategory Category => _category;
     public string? DeparturePlatform { get; init; }
     public string? ArrivalPlatform { get; init; }
-    
+
     public TimeOnly DepartureTime => TimeOnly.FromDateTime(Departure);
     public TimeOnly ArrivalTime   => TimeOnly.FromDateTime(Arrival);
-
-    public TrainCategory Category => TrainCategories.Resolve(CommercialCategory);
 
     public string GetFullTrainName() =>
         string.IsNullOrEmpty(_trainName)

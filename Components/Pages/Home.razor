@@ -301,7 +301,7 @@
     private static DisplayTrip ToDisplayTrip(ScheduledTrip trip)
     {
         var seg = new DisplaySegment(
-            trip.TrainName,
+            $"{trip.CommercialCategory} {trip.TrainName}".Trim(),
             trip.DeparturePlatform ?? "",
             trip.PlannedDeparture,
             trip.PlannedArrival,
@@ -321,7 +321,7 @@
     private static DisplayTrip ToDisplayTrip(Journey trip)
     {
         var segments = trip.Legs.Select(s => new DisplaySegment(
-            s.TrainName,
+            s.GetFullTrainName(),
             s.DeparturePlatform ?? "",
             s.DepartureTime,
             s.ArrivalTime,

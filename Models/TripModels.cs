@@ -61,7 +61,18 @@ public sealed record JourneySegment
     public DateTime Arrival { get; init; }
     public int ScheduleId { get; init; }
     public int OrderId { get; init; }
-    public string TrainName { get; init; } = "";
+    private string _trainName = "";
+    public string TrainName
+    {
+        get => _trainName;
+        init
+        {
+            if (value.All(char.IsDigit)) { _trainName = ""; return; }
+            _trainName = string.Join(' ', value
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(w => char.ToUpper(w[0]) + w[1..].ToLowerInvariant()));
+        }
+    }
     public string CarrierCode { get; init; } = "";
     public string CommercialCategory { get; init; } = "";
     public string? DeparturePlatform { get; init; }
@@ -69,9 +80,12 @@ public sealed record JourneySegment
     
     public TimeOnly DepartureTime => TimeOnly.FromDateTime(Departure);
     public TimeOnly ArrivalTime   => TimeOnly.FromDateTime(Arrival);
+
+    public string GetFullTrainName() =>
+        $"{CommercialCategory} {_trainName}";
     
     public override string ToString() =>
-        $"{TrainName} {FromStationId}->{ToStationId} {DepartureTime:HH:mm}-{ArrivalTime:HH:mm}";
+        $"{GetFullTrainName()} {FromStationId}->{ToStationId} {DepartureTime:HH:mm}-{ArrivalTime:HH:mm}";
 }
 
 // A complete multi-segment journey produced by the CSA pathfinder
@@ -100,7 +114,7 @@ public record Journey(
             var last = Legs[j - 1];
             var dep  = TimeOnly.FromDateTime(first.Departure);
             var arr  = TimeOnly.FromDateTime(last.Arrival);
-            parts.Add($"{first.TrainName} {first.FromStationId}->{last.ToStationId} {dep:HH:mm}-{arr:HH:mm}");
+            parts.Add($"{first.GetFullTrainName()} {first.FromStationId}->{last.ToStationId} {dep:HH:mm}-{arr:HH:mm}");
             i = j;
         }
         return string.Join(" | ", parts);

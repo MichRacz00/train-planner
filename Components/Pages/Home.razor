@@ -301,7 +301,7 @@
     private static DisplayTrip ToDisplayTrip(ScheduledTrip trip)
     {
         var seg = new DisplaySegment(
-            trip.TrainName,
+            $"{trip.CommercialCategory} {trip.TrainName}".Trim(),
             trip.DeparturePlatform ?? "",
             trip.PlannedDeparture,
             trip.PlannedArrival,
@@ -318,29 +318,26 @@
             []);
     }
 
-    private static DisplayTrip ToDisplayTrip(MultiSegmentTrip trip)
+    private static DisplayTrip ToDisplayTrip(Journey trip)
     {
-        var segments = trip.Segments.Select(s => new DisplaySegment(
-            s.TrainName,
+        var segments = trip.Legs.Select(s => new DisplaySegment(
+            s.GetFullTrainName(),
             s.DeparturePlatform ?? "",
-            s.PlannedDeparture,
-            s.PlannedArrival,
-            s.From.Code,
-            s.To.Code)).ToArray();
+            s.DepartureTime,
+            s.ArrivalTime,
+            s.FromStationId.ToString(),
+            s.ToStationId.ToString())).ToArray();
 
         var transferTimes = new List<TimeSpan>();
-        for (var i = 1; i < trip.Segments.Count; i++)
+        for (var i = 1; i < trip.Legs.Count; i++)
         {
-            var gap = trip.Segments[i].PlannedDeparture > trip.Segments[i - 1].PlannedArrival
-                ? trip.Segments[i].PlannedDeparture - trip.Segments[i - 1].PlannedArrival
-                : TimeSpan.FromHours(24) - (trip.Segments[i - 1].PlannedArrival - trip.Segments[i].PlannedDeparture);
-            transferTimes.Add(gap);
+            transferTimes.Add(trip.Legs[i].Departure - trip.Legs[i - 1].Arrival);
         }
 
         return new DisplayTrip(
             $"M-{trip.Segments[0].ScheduleId}-{trip.Segments[0].OrderId}",
-            trip.DepartureTime,
-            trip.ArrivalTime,
+            trip.DepartureTimeOfDay,
+            trip.ArrivalTimeOfDay,
             trip.TotalDuration,
             trip.Transfers,
             segments,

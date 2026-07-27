@@ -1,52 +1,9 @@
 namespace TrainPlanner.Models;
 
-public record Station(string Code, string Name, string City);
-
-
-public enum TrainType
-{
-    Regional,
-    InterCity,
-    HighSpeed,
-    Night
-}
-
-public record JourneySegment(TrainType TrainType, string TrainNumber, string Platform);
-
-public record TripResult
-{
-    public required string TripId { get; init; }
-    public required Station From { get; init; }
-    public required Station To { get; init; }
-    public required TimeOnly Departure { get; init; }
-    public required TimeOnly Arrival { get; init; }
-    public required decimal PricePerPerson { get; init; }
-    public List<JourneySegment> Segments { get; init; } = [];
-    public List<string> Amenities { get; init; } = [];
-
-    public int Transfers => Math.Max(0, Segments.Count - 1);
-
-    public TimeSpan Duration => Arrival > Departure
-        ? Arrival - Departure
-        : TimeSpan.FromHours(24) - (Departure - Arrival);
-
-    public string FormattedDuration
-    {
-        get
-        {
-            var d = Duration;
-            return d.Hours > 0
-                ? $"{d.Hours}h {d.Minutes:D2}m"
-                : $"{d.Minutes}m";
-        }
-    }
-}
-
 // ── PLK API data models ─────────────────────────────────────────────────────
 
-public record PlkStation(int Id, string Name, string City)
+public record PlkStation(int Id, string Name)
 {
-    // Compat: markup uses station.Code (string) for select option values
     public string Code => Id.ToString();
 }
 
@@ -93,44 +50,84 @@ public record ScheduledTrip
         }
     }
 
-    // Compat aliases — keep Home.razor markup compilable without markup changes
-    public TimeOnly Departure      => PlannedDeparture;
-    public TimeOnly Arrival        => PlannedArrival;
-    public decimal  PricePerPerson => 0m;
-    public IReadOnlyList<JourneySegment> Segments =>
-        CommercialCategory is { Length: > 0 } cat
-            ? [new JourneySegment(
-                  cat switch
-                  {
-                      "EIP" or "EIC" => TrainType.HighSpeed,
-                      "IC"  or "TLK" => TrainType.InterCity,
-                      "NJ"  or "EN"  => TrainType.Night,
-                      _              => TrainType.Regional,
-                  },
-                  TrainName,
-                  DeparturePlatform ?? "")]
-            : [];
 }
 
-// A single leg of a multi-segment journey
-public record TripSegment(
-    int ScheduleId,
-    int OrderId,
-    string TrainName,
-    string CarrierCode,
-    string CommercialCategory,
-    PlkStation From,
-    PlkStation To,
-    TimeOnly PlannedDeparture,
-    TimeOnly PlannedArrival,
-    string? DeparturePlatform,
-    string? ArrivalPlatform);
+// A single leg of a multi-segment journey (also used as the CSA graph edge)
+public sealed record JourneySegment
+{
+    public int FromStationId { get; init; }
+    public int ToStationId { get; init; }
+    public DateTime Departure { get; init; }
+    public DateTime Arrival { get; init; }
+    public int ScheduleId { get; init; }
+    public int OrderId { get; init; }
+    private string _trainName = "";
+    public string TrainName
+    {
+        get => _trainName;
+        init
+        {
+            if (value.All(char.IsDigit)) { _trainName = ""; return; }
+            _trainName = string.Join(' ', value
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(w => char.ToUpper(w[0]) + w[1..].ToLowerInvariant()));
+        }
+    }
+    public string CarrierCode { get; init; } = "";
+    private string _rawCategory = "";
+    private TrainCategory _category = TrainCategories.Resolve(null);
+    public string CommercialCategory
+    {
+        get => _rawCategory;
+        init { _rawCategory = value; _category = TrainCategories.Resolve(value); }
+    }
+    public TrainCategory Category => _category;
+    public string? DeparturePlatform { get; init; }
+    public string? ArrivalPlatform { get; init; }
+
+    public TimeOnly DepartureTime => TimeOnly.FromDateTime(Departure);
+    public TimeOnly ArrivalTime   => TimeOnly.FromDateTime(Arrival);
+
+    public string GetFullTrainName() =>
+        string.IsNullOrEmpty(_trainName)
+            ? Category.DisplayName
+            : $"{Category.DisplayName} {_trainName}";
+
+    public override string ToString() =>
+        $"{GetFullTrainName()} {FromStationId}->{ToStationId} {DepartureTime:HH:mm}-{ArrivalTime:HH:mm}";
+}
 
 // A complete multi-segment journey produced by the CSA pathfinder
-public record MultiSegmentTrip(
-    IReadOnlyList<TripSegment> Segments,
-    TimeOnly DepartureTime,
-    TimeOnly ArrivalTime,
+public record Journey(
+    IReadOnlyList<JourneySegment> Segments,
     int Transfers,
-    TimeSpan TotalDuration,
-    TimeSpan TransferTime);
+    TimeSpan TotalDuration)
+{
+    public DateTime Departure          => Segments[0].Departure;
+    public DateTime Arrival            => Segments[^1].Arrival;
+    public TimeOnly DepartureTimeOfDay => TimeOnly.FromDateTime(Departure);
+    public TimeOnly ArrivalTimeOfDay   => TimeOnly.FromDateTime(Arrival);
+    
+    public IReadOnlyList<JourneySegment> Legs { get; } = BuildServiceLegs(Segments);
+
+    private static IReadOnlyList<JourneySegment> BuildServiceLegs(IReadOnlyList<JourneySegment> legs)
+    {
+        var result = new List<JourneySegment>();
+        var i = 0;
+        while (i < legs.Count)
+        {
+            var first = legs[i];
+            var j = i + 1;
+            while (j < legs.Count &&
+                   legs[j].ScheduleId == first.ScheduleId &&
+                   legs[j].OrderId    == first.OrderId)
+                j++;
+            var last = legs[j - 1];
+            result.Add(first with { ToStationId = last.ToStationId, Arrival = last.Arrival });
+            i = j;
+        }
+        return result;
+    }
+
+    public override string ToString() => string.Join(" | ", Legs);
+}

@@ -4,35 +4,24 @@ using TrainPlanner.Models;
 namespace TrainPlanner.Services;
 
 /// <summary>
-/// Converts PLK route DTOs into sorted Connection objects ready for CSA scanning.
+/// Converts PLK route DTOs into sorted TrainLeg objects ready for CSA scanning.
 /// Owns all knowledge of the API's time/day format.
+/// Times are stored as DateTime using travelDate as the base, so overnight
+/// trains (DepartureDay=0, ArrivalDay=1) are represented as consecutive DateTimes
+/// and compare correctly without any modulo arithmetic.
 /// </summary>
 internal static class ConnectionBuilder
 {
-    internal sealed class Connection
-    {
-        public int FromStationId { get; init; }
-        public int ToStationId { get; init; }
-        public TimeSpan DepartureTime { get; init; }
-        public TimeSpan ArrivalTime { get; init; }
-        public int ScheduleId { get; init; }
-        public int OrderId { get; init; }
-        public string TrainName { get; init; } = "";
-        public string CarrierCode { get; init; } = "";
-        public string CommercialCategory { get; init; } = "";
-        public string? DeparturePlatform { get; init; }
-        public string? ArrivalPlatform { get; init; }
-    }
-
-    public static List<Connection> Build(
+    public static List<JourneySegment> Build(
         IEnumerable<PlkRouteDto> routes,
         DateOnly travelDate,
         ILogger logger,
         CancellationToken ct = default)
     {
-        var connections = new List<Connection>();
+        var legs = new List<JourneySegment>();
         var routesProcessed = 0;
         var routesSkipped = 0;
+        var baseDate = travelDate.ToDateTime(TimeOnly.MinValue);
 
         foreach (var route in routes)
         {
@@ -51,12 +40,12 @@ internal static class ConnectionBuilder
             }
 
             routesProcessed++;
-            var connectionsAdded = 0;
+            var legsAdded = 0;
 
             for (var i = 0; i < route.Stations.Count - 1; i++)
             {
                 var from = route.Stations[i];
-                var to = route.Stations[i + 1];
+                var to   = route.Stations[i + 1];
 
                 if (from.DepartureTime is null || to.ArrivalTime is null)
                     continue;
@@ -68,39 +57,39 @@ internal static class ConnectionBuilder
 
                 var depDay = from.DepartureDay ?? 0;
                 var arrDay = to.ArrivalDay ?? 0;
-                var depTimeSpan = depTime.ToTimeSpan() + TimeSpan.FromHours(24 * depDay);
-                var arrTimeSpan = arrTime.ToTimeSpan() + TimeSpan.FromHours(24 * arrDay);
+                var dep = baseDate + depTime.ToTimeSpan() + TimeSpan.FromHours(24 * depDay);
+                var arr = baseDate + arrTime.ToTimeSpan() + TimeSpan.FromHours(24 * arrDay);
 
-                connections.Add(new Connection
+                legs.Add(new JourneySegment
                 {
-                    FromStationId = from.StationId,
-                    ToStationId = to.StationId,
-                    DepartureTime = depTimeSpan,
-                    ArrivalTime = arrTimeSpan,
-                    ScheduleId = route.ScheduleId,
-                    OrderId = route.OrderId,
-                    TrainName = route.Name ?? route.NationalNumber ?? $"{route.CarrierCode} {route.OrderId}",
-                    CarrierCode = route.CarrierCode ?? "",
+                    FromStationId     = from.StationId,
+                    ToStationId       = to.StationId,
+                    Departure         = dep,
+                    Arrival           = arr,
+                    ScheduleId        = route.ScheduleId,
+                    OrderId           = route.OrderId,
+                    TrainName         = route.Name ?? route.NationalNumber ?? $"{route.CarrierCode} {route.OrderId}",
+                    CarrierCode       = route.CarrierCode ?? "",
                     CommercialCategory = route.CommercialCategorySymbol ?? "",
                     DeparturePlatform = from.DeparturePlatform,
-                    ArrivalPlatform = to.ArrivalPlatform
+                    ArrivalPlatform   = to.ArrivalPlatform
                 });
-                connectionsAdded++;
+                legsAdded++;
             }
 
             if (routesProcessed % 50 == 0)
-                logger.LogDebug("ConnectionBuilder: {RoutesProcessed} routes processed, {ConnectionCount} connections so far", routesProcessed, connections.Count);
+                logger.LogDebug("ConnectionBuilder: {RoutesProcessed} routes processed, {LegCount} legs so far", routesProcessed, legs.Count);
 
-            if (connectionsAdded > 0)
-                logger.LogDebug("ConnectionBuilder: route {ScheduleId}/{OrderId} yielded {ConnectionsAdded} connections", route.ScheduleId, route.OrderId, connectionsAdded);
+            if (legsAdded > 0)
+                logger.LogDebug("ConnectionBuilder: route {ScheduleId}/{OrderId} yielded {LegsAdded} legs", route.ScheduleId, route.OrderId, legsAdded);
         }
 
-        connections.Sort((a, b) => a.DepartureTime.CompareTo(b.DepartureTime));
+        legs.Sort((a, b) => a.Departure.CompareTo(b.Departure));
 
-        logger.LogInformation("ConnectionBuilder: {RoutesProcessed} routes processed, {RoutesSkipped} skipped, {ConnectionCount} connections built and sorted",
-            routesProcessed, routesSkipped, connections.Count);
+        logger.LogInformation("ConnectionBuilder: {RoutesProcessed} routes processed, {RoutesSkipped} skipped, {LegCount} legs built and sorted",
+            routesProcessed, routesSkipped, legs.Count);
 
-        return connections;
+        return legs;
     }
 
     private static bool OperatesOnDate(PlkRouteDto route, DateOnly date)

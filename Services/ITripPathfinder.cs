@@ -4,7 +4,7 @@ namespace TrainPlanner.Services;
 
 public interface ITripPathfinder
 {
-    Task<IReadOnlyList<MultiSegmentTrip>> FindTripsAsync(
+    Task<IReadOnlyList<Journey>> FindTripsAsync(
         int fromStationId,
         int toStationId,
         DateOnly travelDate,

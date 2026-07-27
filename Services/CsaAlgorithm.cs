@@ -1,97 +1,70 @@
-using TrainPlanner.Services;
-using Connection = TrainPlanner.Services.ConnectionBuilder.Connection;
+using TrainPlanner.Models;
 
 namespace TrainPlanner.Services;
 
 /// <summary>
 /// Pure Connection Scanning Algorithm implementation.
-/// No I/O, no logging, no DI — takes sorted connections, returns journeys.
+/// No I/O, no logging, no DI — takes sorted TrainLegs, returns a MultiSegmentTrip.
+/// All times are DateTime so overnight trains compare and sort correctly.
 /// </summary>
 internal static class CsaAlgorithm
 {
-    internal sealed record Journey(List<Connection> Connections, int Transfers)
-    {
-        public override string ToString()
-        {
-            if (Connections.Count == 0)
-                return "Journey(0 connections)";
-
-            var dep = Connections[0].DepartureTime;
-            var arr = Connections[^1].ArrivalTime;
-            return $"Journey({dep:hh\\:mm}-{arr:hh\\:mm}, {Transfers} transfer(s), {Connections.Count} conn(s))";
-        }
-    }
-
     private sealed class Label
     {
-        public TimeSpan Arrival { get; init; }
-        public Connection? LastConnection { get; init; }
+        public DateTime Arrival { get; init; }
+        public TrainLeg? LastLeg { get; init; }
     }
 
     /// <summary>
-    /// Runs a single CSA scan from a given earliest departure time at the origin,
-    /// returning the earliest-arrival journey to the destination, or null if unreachable.
+    /// Runs a single CSA scan from a given earliest departure DateTime at the origin,
+    /// returning the earliest-arrival MultiSegmentTrip to the destination, or null if unreachable.
     /// </summary>
-    public static Journey? FindEarliestArrival(
-        List<Connection> sortedConnections,
+    public static MultiSegmentTrip? FindEarliestArrival(
+        List<TrainLeg> sortedLegs,
         int fromStationId,
         int toStationId,
-        TimeSpan earliestDeparture)
+        DateTime earliestDeparture)
     {
         var labels = new Dictionary<int, Label>();
-        var predecessors = new Dictionary<Connection, Connection?>();
+        var predecessors = new Dictionary<TrainLeg, TrainLeg?>();
 
-        labels[fromStationId] = new Label
+        labels[fromStationId] = new Label { Arrival = earliestDeparture, LastLeg = null };
+
+        foreach (var leg in sortedLegs)
         {
-            Arrival = earliestDeparture,
-            LastConnection = null
-        };
-
-        foreach (var conn in sortedConnections)
-        {
-            if (!labels.TryGetValue(conn.FromStationId, out var label))
+            if (!labels.TryGetValue(leg.FromStationId, out var label))
                 continue;
 
-            if (label.Arrival > conn.DepartureTime)
+            if (label.Arrival > leg.Departure)
                 continue;
 
-            if (labels.TryGetValue(conn.ToStationId, out var current) && conn.ArrivalTime >= current.Arrival)
+            if (labels.TryGetValue(leg.ToStationId, out var current) && leg.Arrival >= current.Arrival)
                 continue;
 
-            predecessors[conn] = label.LastConnection;
+            predecessors[leg] = label.LastLeg;
 
-            labels[conn.ToStationId] = new Label
-            {
-                Arrival = conn.ArrivalTime,
-                LastConnection = conn
-            };
+            labels[leg.ToStationId] = new Label { Arrival = leg.Arrival, LastLeg = leg };
 
-            if (conn.ToStationId == toStationId)
-                return ReconstructJourney(conn, predecessors);
+            if (leg.ToStationId == toStationId)
+                return Reconstruct(leg, predecessors);
         }
 
         return null;
     }
 
-    private static Journey ReconstructJourney(
-        Connection finalConnection,
-        Dictionary<Connection, Connection?> predecessors)
+    private static MultiSegmentTrip Reconstruct(TrainLeg final, Dictionary<TrainLeg, TrainLeg?> predecessors)
     {
-        var path = new List<Connection>();
-
-        for (Connection? c = finalConnection; c != null; c = predecessors.TryGetValue(c, out var prev) ? prev : null)
+        var path = new List<TrainLeg>();
+        for (TrainLeg? c = final; c != null; c = predecessors.TryGetValue(c, out var prev) ? prev : null)
             path.Add(c);
-
         path.Reverse();
 
         var transfers = 0;
         for (var i = 1; i < path.Count; i++)
-        {
-            if (path[i].ScheduleId != path[i - 1].ScheduleId ||
-                path[i].OrderId != path[i - 1].OrderId)
+            if (path[i].ScheduleId != path[i - 1].ScheduleId || path[i].OrderId != path[i - 1].OrderId)
                 transfers++;
-        }
 
-        return new Journey(path, transfers);
+        var duration = path[^1].Arrival - path[0].Departure;
+        return new MultiSegmentTrip(path, transfers, duration);
     }
 }

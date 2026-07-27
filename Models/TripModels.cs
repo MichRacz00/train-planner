@@ -1,52 +1,9 @@
 namespace TrainPlanner.Models;
 
-public record Station(string Code, string Name, string City);
-
-
-public enum TrainType
-{
-    Regional,
-    InterCity,
-    HighSpeed,
-    Night
-}
-
-public record JourneySegment(TrainType TrainType, string TrainNumber, string Platform);
-
-public record TripResult
-{
-    public required string TripId { get; init; }
-    public required Station From { get; init; }
-    public required Station To { get; init; }
-    public required TimeOnly Departure { get; init; }
-    public required TimeOnly Arrival { get; init; }
-    public required decimal PricePerPerson { get; init; }
-    public List<JourneySegment> Segments { get; init; } = [];
-    public List<string> Amenities { get; init; } = [];
-
-    public int Transfers => Math.Max(0, Segments.Count - 1);
-
-    public TimeSpan Duration => Arrival > Departure
-        ? Arrival - Departure
-        : TimeSpan.FromHours(24) - (Departure - Arrival);
-
-    public string FormattedDuration
-    {
-        get
-        {
-            var d = Duration;
-            return d.Hours > 0
-                ? $"{d.Hours}h {d.Minutes:D2}m"
-                : $"{d.Minutes}m";
-        }
-    }
-}
-
 // ── PLK API data models ─────────────────────────────────────────────────────
 
-public record PlkStation(int Id, string Name, string City)
+public record PlkStation(int Id, string Name)
 {
-    // Compat: markup uses station.Code (string) for select option values
     public string Code => Id.ToString();
 }
 
@@ -93,44 +50,36 @@ public record ScheduledTrip
         }
     }
 
-    // Compat aliases — keep Home.razor markup compilable without markup changes
-    public TimeOnly Departure      => PlannedDeparture;
-    public TimeOnly Arrival        => PlannedArrival;
-    public decimal  PricePerPerson => 0m;
-    public IReadOnlyList<JourneySegment> Segments =>
-        CommercialCategory is { Length: > 0 } cat
-            ? [new JourneySegment(
-                  cat switch
-                  {
-                      "EIP" or "EIC" => TrainType.HighSpeed,
-                      "IC"  or "TLK" => TrainType.InterCity,
-                      "NJ"  or "EN"  => TrainType.Night,
-                      _              => TrainType.Regional,
-                  },
-                  TrainName,
-                  DeparturePlatform ?? "")]
-            : [];
 }
 
-// A single leg of a multi-segment journey
-public record TripSegment(
-    int ScheduleId,
-    int OrderId,
-    string TrainName,
-    string CarrierCode,
-    string CommercialCategory,
-    PlkStation From,
-    PlkStation To,
-    TimeOnly PlannedDeparture,
-    TimeOnly PlannedArrival,
-    string? DeparturePlatform,
-    string? ArrivalPlatform);
+// A single leg of a multi-segment journey (also used as the CSA graph edge)
+public sealed record TrainLeg
+{
+    public int FromStationId { get; init; }
+    public int ToStationId { get; init; }
+    public DateTime Departure { get; init; }
+    public DateTime Arrival { get; init; }
+    public int ScheduleId { get; init; }
+    public int OrderId { get; init; }
+    public string TrainName { get; init; } = "";
+    public string CarrierCode { get; init; } = "";
+    public string CommercialCategory { get; init; } = "";
+    public string? DeparturePlatform { get; init; }
+    public string? ArrivalPlatform { get; init; }
+
+    // Display helpers — TimeOnly extracted from the DateTime
+    public TimeOnly DepartureTime => TimeOnly.FromDateTime(Departure);
+    public TimeOnly ArrivalTime   => TimeOnly.FromDateTime(Arrival);
+}
 
 // A complete multi-segment journey produced by the CSA pathfinder
 public record MultiSegmentTrip(
-    IReadOnlyList<TripSegment> Segments,
-    TimeOnly DepartureTime,
-    TimeOnly ArrivalTime,
+    IReadOnlyList<TrainLeg> Legs,
     int Transfers,
-    TimeSpan TotalDuration,
-    TimeSpan TransferTime);
+    TimeSpan TotalDuration)
+{
+    public DateTime Departure          => Legs[0].Departure;
+    public DateTime Arrival            => Legs[^1].Arrival;
+    public TimeOnly DepartureTimeOfDay => TimeOnly.FromDateTime(Departure);
+    public TimeOnly ArrivalTimeOfDay   => TimeOnly.FromDateTime(Arrival);
+}

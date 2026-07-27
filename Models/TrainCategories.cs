@@ -34,7 +34,7 @@ public static class TrainCategories
             return known;
 
         if (CommuterPattern.IsMatch(plkSymbol))
-            return new("Commuter", TrainCategoryTier.Commuter);
+            return new(plkSymbol, TrainCategoryTier.Commuter);
 
         return new($"Other ({plkSymbol})", TrainCategoryTier.Other);
     }

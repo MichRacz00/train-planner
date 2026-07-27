@@ -124,23 +124,6 @@ public record PlkOperationStationDto(
     [property: JsonPropertyName("isConfirmed")] bool IsConfirmed,
     [property: JsonPropertyName("isCancelled")] bool IsCancelled);
 
-// ── GET /api/v1/dictionaries/carriers ──────────────────────────────────────────
-
-public record PlkCarriersResponse(
-    [property: JsonPropertyName("generatedAt")] DateTime GeneratedAt,
-    [property: JsonPropertyName("carriers")] List<PlkCarrierDto>? Carriers,
-    [property: JsonPropertyName("usage")] PlkCarrierUsageInfo? Usage);
-
-public record PlkCarrierDto(
-    [property: JsonPropertyName("code")] string? Code,
-    [property: JsonPropertyName("name")] string? Name,
-    [property: JsonPropertyName("validFrom")] DateTime? ValidFrom,
-    [property: JsonPropertyName("validTo")] DateTime? ValidTo);
-
-public record PlkCarrierUsageInfo(
-    [property: JsonPropertyName("description")] string? Description,
-    [property: JsonPropertyName("examples")] List<string>? Examples);
-
 // ── Error response ─────────────────────────────────────────────────────────────
 
 public record PlkApiError(

@@ -10,7 +10,7 @@ public static class TrainCategories
 {
     private static readonly Dictionary<string, TrainCategory> Map = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["EIP"] = new("InterCity Express", TrainCategoryTier.Express),
+        ["EIP"] = new("InterCity Premium", TrainCategoryTier.Express),
         ["EIC"] = new("InterCity Express", TrainCategoryTier.Express),
         ["IC"]  = new("InterCity",         TrainCategoryTier.InterCity),
         ["EC"]  = new("InterCity",         TrainCategoryTier.InterCity),

@@ -81,9 +81,13 @@ public sealed record JourneySegment
     public TimeOnly DepartureTime => TimeOnly.FromDateTime(Departure);
     public TimeOnly ArrivalTime   => TimeOnly.FromDateTime(Arrival);
 
+    public TrainCategory Category => TrainCategories.Resolve(CommercialCategory);
+
     public string GetFullTrainName() =>
-        $"{CommercialCategory} {_trainName}";
-    
+        string.IsNullOrEmpty(_trainName)
+            ? Category.DisplayName
+            : $"{Category.DisplayName} {_trainName}";
+
     public override string ToString() =>
         $"{GetFullTrainName()} {FromStationId}->{ToStationId} {DepartureTime:HH:mm}-{ArrivalTime:HH:mm}";
 }

@@ -17,7 +17,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         var routes = await routeCache.GetRoutesAsync(travelDate, ct);
         var connections = ConnectionBuilder.Build(routes, travelDate, logger, ct);
 
-        var results = new List<MultiSegmentTrip>();
+        var journeys = new List<Journey>();
         var nextDep = departureAfter.ToTimeSpan();
         var midnight = TimeSpan.FromHours(24);
 
@@ -27,16 +27,48 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
             if (journey == null) break;
 
             nextDep = journey.Connections[0].DepartureTime + TimeSpan.FromTicks(1);
-
-            var trip = BuildTrip(journey);
-            if (trip != null)
-                results.Add(trip);
+            journeys.Add(journey);
         }
 
-        sw.Stop();
-        logger.LogInformation("Complete: returned {ResultCount} results in {ElapsedMs}ms", results.Count, sw.ElapsedMilliseconds);
+        var results = journeys
+            .GroupBy(GetTypeKey)
+            .SelectMany(DeduplicateByArrivalMinute)
+            .OrderBy(j => j.Connections[0].DepartureTime)
+            .Select(BuildTrip)
+            .Where(t => t != null)
+            .Cast<MultiSegmentTrip>()
+            .ToList();
 
+        logger.LogInformation("Complete: {Raw} journeys -> {Result} after type-dedup in {ElapsedMs}ms",
+            journeys.Count, results.Count, sw.ElapsedMilliseconds);
+
+        sw.Stop();
         return results;
+    }
+
+    private static string GetTypeKey(Journey journey)
+    {
+        var result = new List<string>();
+        string? lastTrain = null;
+        foreach (var conn in journey.Connections)
+        {
+            var train = $"{conn.ScheduleId}:{conn.OrderId}";
+            if (train != lastTrain)
+            {
+                var cat = string.IsNullOrEmpty(conn.CommercialCategory) ? "?" : conn.CommercialCategory;
+                result.Add(cat);
+                lastTrain = train;
+            }
+        }
+        Console.WriteLine(string.Join("→", result));
+        return string.Join("→", result);
+    }
+
+    private static IEnumerable<Journey> DeduplicateByArrivalMinute(IEnumerable<Journey> group)
+    {
+        return group
+            .GroupBy(j => (long)j.Connections[^1].ArrivalTime.TotalMinutes)
+            .Select(bucket => bucket.MaxBy(j => j.Connections[0].DepartureTime)!);
     }
 
     private static MultiSegmentTrip? BuildTrip(Journey journey)

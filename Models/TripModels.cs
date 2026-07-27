@@ -99,33 +99,35 @@ public sealed record JourneySegment
 
 // A complete multi-segment journey produced by the CSA pathfinder
 public record Journey(
-    IReadOnlyList<JourneySegment> Legs,
+    IReadOnlyList<JourneySegment> Segments,
     int Transfers,
     TimeSpan TotalDuration)
 {
-    public DateTime Departure          => Legs[0].Departure;
-    public DateTime Arrival            => Legs[^1].Arrival;
+    public DateTime Departure          => Segments[0].Departure;
+    public DateTime Arrival            => Segments[^1].Arrival;
     public TimeOnly DepartureTimeOfDay => TimeOnly.FromDateTime(Departure);
     public TimeOnly ArrivalTimeOfDay   => TimeOnly.FromDateTime(Arrival);
     
-    public override string ToString()
+    public IReadOnlyList<JourneySegment> Legs { get; } = BuildServiceLegs(Segments);
+
+    private static IReadOnlyList<JourneySegment> BuildServiceLegs(IReadOnlyList<JourneySegment> legs)
     {
-        var parts = new List<string>();
+        var result = new List<JourneySegment>();
         var i = 0;
-        while (i < Legs.Count)
+        while (i < legs.Count)
         {
-            var first = Legs[i];
+            var first = legs[i];
             var j = i + 1;
-            while (j < Legs.Count &&
-                   Legs[j].ScheduleId == first.ScheduleId &&
-                   Legs[j].OrderId    == first.OrderId)
+            while (j < legs.Count &&
+                   legs[j].ScheduleId == first.ScheduleId &&
+                   legs[j].OrderId    == first.OrderId)
                 j++;
-            var last = Legs[j - 1];
-            var dep  = TimeOnly.FromDateTime(first.Departure);
-            var arr  = TimeOnly.FromDateTime(last.Arrival);
-            parts.Add($"{first.GetFullTrainName()} {first.FromStationId}->{last.ToStationId} {dep:HH:mm}-{arr:HH:mm}");
+            var last = legs[j - 1];
+            result.Add(first with { ToStationId = last.ToStationId, Arrival = last.Arrival });
             i = j;
         }
-        return string.Join(" | ", parts);
+        return result;
     }
+
+    public override string ToString() => string.Join(" | ", Legs);
 }

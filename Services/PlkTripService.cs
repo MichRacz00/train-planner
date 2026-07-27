@@ -57,7 +57,7 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
             var response = JsonSerializer.Deserialize<PlkStationsResponse>(raw, JsonOptions);
 
             if (response?.Stations is { Count: > 0 } stations)
-                all.AddRange(stations.Select(s => new PlkStation(s.Id, s.Name ?? "", "")));
+                all.AddRange(stations.Select(s => new PlkStation(s.Id, s.Name ?? "")));
 
             totalPages = response?.TotalPages ?? 1;
             page++;
@@ -94,12 +94,12 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
             .ToDictionary(g => g.Key, g => g.First());
 
         var stationNames = scheduleResp.Dictionaries?.Stations
-                           ?? new Dictionary<string, PlkStationDictionaryDto>();
+                           ?? new Dictionary<string, PlkStationDto>();
 
         var fromStation = new PlkStation(searchParams.FromStationId,
-                                         LookupStationName(stationNames, searchParams.FromStationId), "");
+                                         LookupStationName(stationNames, searchParams.FromStationId));
         var toStation = new PlkStation(searchParams.ToStationId,
-                                       LookupStationName(stationNames, searchParams.ToStationId), "");
+                                       LookupStationName(stationNames, searchParams.ToStationId));
 
         var results = new List<ScheduledTrip>();
 
@@ -164,7 +164,7 @@ public class PlkTripService(IHttpClientFactory httpClientFactory) : IPlkTripServ
         => httpClientFactory.CreateClient("PlkApi");
 
     private static string LookupStationName(
-        Dictionary<string, PlkStationDictionaryDto> dict, int id)
+        Dictionary<string, PlkStationDto> dict, int id)
         => dict.TryGetValue(id.ToString(), out var s) ? s.Name ?? id.ToString() : id.ToString();
 
     private static bool TryParseDuration(string? raw, out TimeSpan ts)

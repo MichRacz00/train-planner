@@ -6,7 +6,7 @@ namespace TrainPlanner.Services;
 
 public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger) : ITripPathfinder
 {
-    public async Task<IReadOnlyList<MultiSegmentTrip>> FindTripsAsync(
+    public async Task<IReadOnlyList<Journey>> FindTripsAsync(
         int fromStationId, int toStationId, DateOnly travelDate, TimeOnly departureAfter = default, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
@@ -15,7 +15,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         var routes = await routeCache.GetRoutesAsync(travelDate, ct);
         var legs = ConnectionBuilder.Build(routes, travelDate, logger, ct);
 
-        var trips = new List<MultiSegmentTrip>();
+        var trips = new List<Journey>();
         var nextDep = travelDate.ToDateTime(departureAfter);
         var midnight = travelDate.ToDateTime(TimeOnly.MinValue).AddDays(1);
 
@@ -26,6 +26,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
 
             nextDep = trip.Departure + TimeSpan.FromTicks(1);
             trips.Add(trip);
+            Console.WriteLine(trip);
         }
 
         var results = trips
@@ -41,7 +42,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         return results;
     }
 
-    private static string GetTypeKey(MultiSegmentTrip trip)
+    private static string GetTypeKey(Journey trip)
     {
         var result = new List<string>();
         string? lastTrain = null;
@@ -58,7 +59,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         return string.Join("→", result);
     }
 
-    private static IEnumerable<MultiSegmentTrip> DeduplicateByArrivalMinute(IEnumerable<MultiSegmentTrip> group)
+    private static IEnumerable<Journey> DeduplicateByArrivalMinute(IEnumerable<Journey> group)
     {
         return group
             .GroupBy(t => (long)t.Arrival.TimeOfDay.TotalMinutes)

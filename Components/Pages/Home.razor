@@ -318,7 +318,7 @@
             []);
     }
 
-    private static DisplayTrip ToDisplayTrip(MultiSegmentTrip trip)
+    private static DisplayTrip ToDisplayTrip(Journey trip)
     {
         var segments = trip.Legs.Select(s => new DisplaySegment(
             s.TrainName,

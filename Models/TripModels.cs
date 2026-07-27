@@ -53,7 +53,7 @@ public record ScheduledTrip
 }
 
 // A single leg of a multi-segment journey (also used as the CSA graph edge)
-public sealed record TrainLeg
+public sealed record JourneySegment
 {
     public int FromStationId { get; init; }
     public int ToStationId { get; init; }
@@ -66,15 +66,17 @@ public sealed record TrainLeg
     public string CommercialCategory { get; init; } = "";
     public string? DeparturePlatform { get; init; }
     public string? ArrivalPlatform { get; init; }
-
-    // Display helpers — TimeOnly extracted from the DateTime
+    
     public TimeOnly DepartureTime => TimeOnly.FromDateTime(Departure);
     public TimeOnly ArrivalTime   => TimeOnly.FromDateTime(Arrival);
+    
+    public override string ToString() =>
+        $"{TrainName} {FromStationId}->{ToStationId} {DepartureTime:HH:mm}-{ArrivalTime:HH:mm}";
 }
 
 // A complete multi-segment journey produced by the CSA pathfinder
-public record MultiSegmentTrip(
-    IReadOnlyList<TrainLeg> Legs,
+public record Journey(
+    IReadOnlyList<JourneySegment> Legs,
     int Transfers,
     TimeSpan TotalDuration)
 {
@@ -82,4 +84,25 @@ public record MultiSegmentTrip(
     public DateTime Arrival            => Legs[^1].Arrival;
     public TimeOnly DepartureTimeOfDay => TimeOnly.FromDateTime(Departure);
     public TimeOnly ArrivalTimeOfDay   => TimeOnly.FromDateTime(Arrival);
+    
+    public override string ToString()
+    {
+        var parts = new List<string>();
+        var i = 0;
+        while (i < Legs.Count)
+        {
+            var first = Legs[i];
+            var j = i + 1;
+            while (j < Legs.Count &&
+                   Legs[j].ScheduleId == first.ScheduleId &&
+                   Legs[j].OrderId    == first.OrderId)
+                j++;
+            var last = Legs[j - 1];
+            var dep  = TimeOnly.FromDateTime(first.Departure);
+            var arr  = TimeOnly.FromDateTime(last.Arrival);
+            parts.Add($"{first.TrainName} {first.FromStationId}->{last.ToStationId} {dep:HH:mm}-{arr:HH:mm}");
+            i = j;
+        }
+        return string.Join(" | ", parts);
+    }
 }

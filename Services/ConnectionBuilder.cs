@@ -12,13 +12,13 @@ namespace TrainPlanner.Services;
 /// </summary>
 internal static class ConnectionBuilder
 {
-    public static List<TrainLeg> Build(
+    public static List<JourneySegment> Build(
         IEnumerable<PlkRouteDto> routes,
         DateOnly travelDate,
         ILogger logger,
         CancellationToken ct = default)
     {
-        var legs = new List<TrainLeg>();
+        var legs = new List<JourneySegment>();
         var routesProcessed = 0;
         var routesSkipped = 0;
         var baseDate = travelDate.ToDateTime(TimeOnly.MinValue);
@@ -60,7 +60,7 @@ internal static class ConnectionBuilder
                 var dep = baseDate + depTime.ToTimeSpan() + TimeSpan.FromHours(24 * depDay);
                 var arr = baseDate + arrTime.ToTimeSpan() + TimeSpan.FromHours(24 * arrDay);
 
-                legs.Add(new TrainLeg
+                legs.Add(new JourneySegment
                 {
                     FromStationId     = from.StationId,
                     ToStationId       = to.StationId,

@@ -12,21 +12,21 @@ internal static class CsaAlgorithm
     private sealed class Label
     {
         public DateTime Arrival { get; init; }
-        public TrainLeg? LastLeg { get; init; }
+        public JourneySegment? LastLeg { get; init; }
     }
 
     /// <summary>
     /// Runs a single CSA scan from a given earliest departure DateTime at the origin,
     /// returning the earliest-arrival MultiSegmentTrip to the destination, or null if unreachable.
     /// </summary>
-    public static MultiSegmentTrip? FindEarliestArrival(
-        List<TrainLeg> sortedLegs,
+    public static Journey? FindEarliestArrival(
+        List<JourneySegment> sortedLegs,
         int fromStationId,
         int toStationId,
         DateTime earliestDeparture)
     {
         var labels = new Dictionary<int, Label>();
-        var predecessors = new Dictionary<TrainLeg, TrainLeg?>();
+        var predecessors = new Dictionary<JourneySegment, JourneySegment?>();
 
         labels[fromStationId] = new Label { Arrival = earliestDeparture, LastLeg = null };
 
@@ -52,10 +52,10 @@ internal static class CsaAlgorithm
         return null;
     }
 
-    private static MultiSegmentTrip Reconstruct(TrainLeg final, Dictionary<TrainLeg, TrainLeg?> predecessors)
+    private static Journey Reconstruct(JourneySegment final, Dictionary<JourneySegment, JourneySegment?> predecessors)
     {
-        var path = new List<TrainLeg>();
-        for (TrainLeg? c = final; c != null; c = predecessors.TryGetValue(c, out var prev) ? prev : null)
+        var path = new List<JourneySegment>();
+        for (JourneySegment? c = final; c != null; c = predecessors.TryGetValue(c, out var prev) ? prev : null)
             path.Add(c);
         path.Reverse();
 
@@ -65,6 +65,6 @@ internal static class CsaAlgorithm
                 transfers++;
 
         var duration = path[^1].Arrival - path[0].Departure;
-        return new MultiSegmentTrip(path, transfers, duration);
+        return new Journey(path, transfers, duration);
     }
 }

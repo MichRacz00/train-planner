@@ -46,7 +46,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
     {
         var result = new List<string>();
         string? lastTrain = null;
-        foreach (var leg in trip.Legs)
+        foreach (var leg in trip.Segments)
         {
             var train = $"{leg.ScheduleId}:{leg.OrderId}";
             if (train != lastTrain)

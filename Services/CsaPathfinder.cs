@@ -51,8 +51,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
             var train = $"{leg.ScheduleId}:{leg.OrderId}";
             if (train != lastTrain)
             {
-                var cat = string.IsNullOrEmpty(leg.CommercialCategory) ? "?" : leg.CommercialCategory;
-                result.Add(cat);
+                result.Add(leg.Category.Tier.ToString());
                 lastTrain = train;
             }
         }

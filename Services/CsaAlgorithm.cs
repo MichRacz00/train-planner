@@ -9,7 +9,18 @@ namespace TrainPlanner.Services;
 /// </summary>
 internal static class CsaAlgorithm
 {
-    internal sealed record Journey(List<Connection> Connections, int Transfers);
+    internal sealed record Journey(List<Connection> Connections, int Transfers)
+    {
+        public override string ToString()
+        {
+            if (Connections.Count == 0)
+                return "Journey(0 connections)";
+
+            var dep = Connections[0].DepartureTime;
+            var arr = Connections[^1].ArrivalTime;
+            return $"Journey({dep:hh\\:mm}-{arr:hh\\:mm}, {Transfers} transfer(s), {Connections.Count} conn(s))";
+        }
+    }
 
     private sealed class Label
     {

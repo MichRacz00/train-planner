@@ -21,20 +21,17 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
 
         while (nextDep < midnight)
         {
-            var trip = CsaAlgorithm.FindEarliestArrival(legs, fromStationId, toStationId, nextDep);
-            if (trip == null) break;
+            var newTrips = CsaAlgorithm.FindJourneys(legs, fromStationId, toStationId, nextDep);
 
-            nextDep = trip.Departure + TimeSpan.FromTicks(1);
-            trips.Add(trip);
-            Console.WriteLine(trip);
+            nextDep = newTrips
+                .SelectMany(x => x.Legs)
+                .Min(x => x.Departure)
+                .AddTicks(1);
+            trips.AddRange(newTrips);
         }
-
-        var results = trips
-            .GroupBy(GetTypeKey)
-            .SelectMany(DeduplicateByArrivalMinute)
-            .OrderBy(t => t.Departure)
-            .ToList();
-
+        
+        var results = trips;
+        
         logger.LogInformation("Complete: {Raw} trips -> {Result} after type-dedup in {ElapsedMs}ms",
             trips.Count, results.Count, sw.ElapsedMilliseconds);
 
@@ -44,18 +41,8 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
 
     private static string GetTypeKey(Journey trip)
     {
-        var result = new List<string>();
-        string? lastTrain = null;
-        foreach (var leg in trip.Segments)
-        {
-            var train = $"{leg.ScheduleId}:{leg.OrderId}";
-            if (train != lastTrain)
-            {
-                result.Add(leg.Category.Tier.ToString());
-                lastTrain = train;
-            }
-        }
-        return string.Join("→", result);
+        // Group arrival bucket by last train
+        return trip.Legs.Last().Category.Tier.ToString();
     }
 
     private static IEnumerable<Journey> DeduplicateByArrivalMinute(IEnumerable<Journey> group)

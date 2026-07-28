@@ -22,27 +22,23 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         while (nextDep < midnight)
         {
             var newTrips = CsaAlgorithm.FindJourneys(legs, fromStationId, toStationId, nextDep);
-
+            if (newTrips.Count == 0) break; //TODO, fetch connections for next day somehow, keep in mind edge cases
+            
             nextDep = newTrips
-                .SelectMany(x => x.Legs)
                 .Min(x => x.Departure)
                 .AddTicks(1);
             trips.AddRange(newTrips);
         }
         
-        var results = trips;
-        
-        logger.LogInformation("Complete: {Raw} trips -> {Result} after type-dedup in {ElapsedMs}ms",
+        var results = DeduplicateByArrivalMinute(trips)
+            .OrderBy(t => t.Departure)
+            .ToList();
+
+        logger.LogInformation("Complete: {Raw} trips -> {Result} after arrival-minute dedup in {ElapsedMs}ms",
             trips.Count, results.Count, sw.ElapsedMilliseconds);
 
         sw.Stop();
         return results;
-    }
-
-    private static string GetTypeKey(Journey trip)
-    {
-        // Group arrival bucket by last train
-        return trip.Legs.Last().Category.Tier.ToString();
     }
 
     private static IEnumerable<Journey> DeduplicateByArrivalMinute(IEnumerable<Journey> group)

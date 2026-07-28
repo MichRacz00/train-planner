@@ -371,4 +371,54 @@ public class CsaAlgorithmTests
 
         Assert.Contains(result, j => j.Transfers == 2 && j.Arrival == Leg.At(19, 18));
     }
+    
+    [Fact]
+    public void TwoTrainsLeavingWroclaw_PrefersOneTransferOverTwoTransfers()
+    {
+        // EIC arrives into Wrocław.
+        // Then two trains leave almost together:
+        //
+        // 17:45 KD 69473
+        //   WRO -> Muchobór
+        //   passenger MUST change trains at Muchobór
+        //
+        // 17:50 KD 69475
+        //   WRO -> Muchobór -> Głogów
+        //   passenger stays on the same train
+        //
+        // Both arrive Głogów at the same time.
+        // The algorithm should keep the 1-transfer journey and discard the 2-transfer one.
+
+        var legs = Leg.Sorted(
+            // Arrive into Wrocław
+            Leg.Make(WAW, WRO, 14, 00, 17, 40,
+                scheduleId: 10, orderId: 1, carrier: "EIC"),
+
+            // Train A (17:45) - requires transfer at Muchobór
+            Leg.Make(WRO, MID, 17, 45, 17, 50,
+                scheduleId: 20, orderId: 1, carrier: "KD"),
+            Leg.Make(MID, GLO, 17, 50, 19, 18,
+                scheduleId: 30, orderId: 1, carrier: "KD"),
+
+            // Train B (17:50) - same physical train through Muchobór
+            Leg.Make(WRO, MID, 17, 50, 17, 55,
+                scheduleId: 40, orderId: 1, carrier: "KD"),
+            Leg.Make(MID, GLO, 17, 55, 19, 18,
+                scheduleId: 40, orderId: 2, carrier: "KD")
+        );
+
+        var result = CsaAlgorithm.FindJourneys(
+            legs,
+            WAW,
+            GLO,
+            Leg.At(14, 0));
+
+        Assert.Contains(result, j =>
+            j.Transfers == 1 &&
+            j.Arrival == Leg.At(19, 18));
+
+        Assert.DoesNotContain(result, j =>
+            j.Transfers == 2 &&
+            j.Arrival == Leg.At(19, 18));
+    }
 }

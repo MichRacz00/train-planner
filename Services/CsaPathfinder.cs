@@ -30,31 +30,24 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
             trips.AddRange(newTrips);
         }
         
-        var results = ParetoFilter(trips)
+        var results = DeduplicateByArrivalMinute(trips)
             .OrderBy(t => t.Departure)
             .ToList();
 
-        logger.LogInformation("Complete: {Raw} trips -> {Result} after Pareto filter in {ElapsedMs}ms",
+        logger.LogInformation("Complete: {Raw} trips -> {Result} after arrival-minute dedup in {ElapsedMs}ms",
             trips.Count, results.Count, sw.ElapsedMilliseconds);
 
         sw.Stop();
         return results;
     }
 
-    private static IEnumerable<Journey> ParetoFilter(IEnumerable<Journey> journeys)
+    private static IEnumerable<Journey> DeduplicateByArrivalMinute(IEnumerable<Journey> group)
     {
-        // Keep a journey only if its transfer count is strictly less than the minimum
-        // seen so far among all journeys with an earlier or equal arrival.
-        // Scanning by ascending arrival means each survivor represents a genuine
-        // trade-off: it arrives later but requires fewer transfers than everything faster.
-        var bestTransfersSoFar = int.MaxValue;
-        foreach (var journey in journeys.OrderBy(j => j.Arrival))
-        {
-            if (journey.Transfers < bestTransfersSoFar)
-            {
-                bestTransfersSoFar = journey.Transfers;
-                yield return journey;
-            }
-        }
+        /*
+        return group
+            .GroupBy(t => (long)t.Arrival.TimeOfDay.TotalMinutes)
+            .Select(bucket => bucket.MaxBy(t => t.Departure)!);
+            */
+        return group;
     }
 }

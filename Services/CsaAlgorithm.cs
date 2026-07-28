@@ -14,6 +14,7 @@ internal static class CsaAlgorithm
         public DateTime Arrival { get; init; }
         public JourneySegment? LastLeg { get; init; }
         public Label? Previous { get; init; }
+        public int TransferCount { get; init; }
         public HashSet<int> VisitedStations { get; init; } = [];
     }
 
@@ -51,9 +52,14 @@ internal static class CsaAlgorithm
                 if (label.VisitedStations.Contains(leg.ToStationId)) 
                     continue;
                 
+                var isTransfer = label.LastLeg != null &&
+                                 (leg.ScheduleId != label.LastLeg.ScheduleId ||
+                                  leg.OrderId    != label.LastLeg.OrderId);
+                
                 var candidate = new Label
                 {
                     Arrival = leg.Arrival,
+                    TransferCount = label.TransferCount + (isTransfer ? 1 : 0),
                     LastLeg = leg,
                     Previous = label,
                     VisitedStations = [.. label.VisitedStations, leg.ToStationId]
@@ -103,14 +109,12 @@ internal static class CsaAlgorithm
 
         var duration = path[^1].Arrival - path[0].Departure;
 
-        return new Journey(path, transfers, duration);
+        return new Journey(path, final.TransferCount, duration);
     }
 
     private static bool Dominates(Label existing, Label candidate)
     {
-        if (existing.LastLeg?.Category != candidate.LastLeg?.Category)
-            return false;
-
-        return existing.Arrival <= candidate.Arrival;
+        return existing.Arrival <= candidate.Arrival
+               && existing.TransferCount <= candidate.TransferCount;
     }
 }

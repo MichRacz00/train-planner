@@ -312,4 +312,63 @@ public class CsaAlgorithmTests
         Assert.Equal(1, result[0].Transfers);
         Assert.Equal(Leg.At(3, 0, day: 1), result[0].Arrival);
     }
+
+    // =========================================================================
+    // Two trains at an intermediate stop — direct must beat chained
+    //
+    // Real-world case: EIC WAW→WRO, then at WRO two trains depart:
+    //   - KD direct WRO→GLO (1 transfer from EIC)
+    //   - Os A WRO→MID, then separate Os B MID→GLO (2 transfers from EIC)
+    // Both arrive GLO at the same time.
+    // The 1-transfer direct must survive; the 2-transfer chain must be dominated.
+    // =========================================================================
+
+    [Fact]
+    public void DirectTrain_AtIntermediateStop_DominatesChainedRouteWithSameArrival()
+    {
+        // KD direct: WRO→GLO dep 17:50, arr 19:18  — 1 transfer (after EIC)
+        // Os A:      WRO→MID dep 17:50, arr 17:55
+        // Os B:      MID→GLO dep 17:55, arr 19:18  — 2 transfers (after EIC)
+        var legs = Leg.Sorted(
+            Leg.Make(WAW, WRO, 14,  0, 17, 45, scheduleId: 10, orderId: 1, carrier: "EIC"),
+            Leg.Make(WRO, GLO, 17, 50, 19, 18, scheduleId: 20, orderId: 1, carrier: "KD"),
+            Leg.Make(WRO, MID, 17, 50, 17, 55, scheduleId: 30, orderId: 1, carrier: "Os"),
+            Leg.Make(MID, GLO, 17, 55, 19, 18, scheduleId: 40, orderId: 1, carrier: "Os"));
+
+        var result = CsaAlgorithm.FindJourneys(legs, WAW, GLO, Leg.At(14, 0));
+
+        Assert.Contains(result,       j => j.Transfers == 1 && j.Arrival == Leg.At(19, 18));
+        Assert.DoesNotContain(result, j => j.Transfers == 2 && j.Arrival == Leg.At(19, 18));
+    }
+
+    [Fact]
+    public void DirectTrain_AtIntermediateStop_IsNotAbsent()
+    {
+        // Same scenario — verifies the 1-transfer journey is actually produced,
+        // not silently dropped by dominance logic.
+        var legs = Leg.Sorted(
+            Leg.Make(WAW, WRO, 14,  0, 17, 45, scheduleId: 10, orderId: 1, carrier: "EIC"),
+            Leg.Make(WRO, GLO, 17, 50, 19, 18, scheduleId: 20, orderId: 1, carrier: "KD"),
+            Leg.Make(WRO, MID, 17, 50, 17, 55, scheduleId: 30, orderId: 1, carrier: "Os"),
+            Leg.Make(MID, GLO, 17, 55, 19, 18, scheduleId: 40, orderId: 1, carrier: "Os"));
+
+        var result = CsaAlgorithm.FindJourneys(legs, WAW, GLO, Leg.At(14, 0));
+
+        Assert.Contains(result, j => j.Transfers == 1 && j.Arrival == Leg.At(19, 18));
+    }
+
+    [Fact]
+    public void ChainedRoute_WhenNoDirectAlternativeExists_IsReturnedWithCorrectTransferCount()
+    {
+        // Without the KD direct leg, the only path is EIC→Os A→Os B = 2 transfers.
+        // Verifies that when there truly is no better option, the chained route still appears.
+        var legs = Leg.Sorted(
+            Leg.Make(WAW, WRO, 14,  0, 17, 45, scheduleId: 10, orderId: 1, carrier: "EIC"),
+            Leg.Make(WRO, MID, 17, 50, 17, 55, scheduleId: 30, orderId: 1, carrier: "Os"),
+            Leg.Make(MID, GLO, 17, 55, 19, 18, scheduleId: 40, orderId: 1, carrier: "Os"));
+
+        var result = CsaAlgorithm.FindJourneys(legs, WAW, GLO, Leg.At(14, 0));
+
+        Assert.Contains(result, j => j.Transfers == 2 && j.Arrival == Leg.At(19, 18));
+    }
 }

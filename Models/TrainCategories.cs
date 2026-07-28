@@ -4,14 +4,35 @@ namespace TrainPlanner.Models;
 
 public enum TrainCategoryTier { Express, InterCity, Regional, Commuter, Other }
 
-public record TrainCategory(string DisplayName, TrainCategoryTier Tier);
+public record TrainCategory(string DisplayName, TrainCategoryTier Tier) : IComparable<TrainCategory>
+{
+    public int CompareTo(TrainCategory? other)
+    {
+        if (other is null)
+            return 1;
+        
+        return other.Tier.CompareTo(Tier);
+    }
+    
+    public static bool operator <(TrainCategory left, TrainCategory right)
+        => left.CompareTo(right) < 0;
+
+    public static bool operator >(TrainCategory left, TrainCategory right)
+        => left.CompareTo(right) > 0;
+
+    public static bool operator <=(TrainCategory left, TrainCategory right)
+        => left.CompareTo(right) <= 0;
+
+    public static bool operator >=(TrainCategory left, TrainCategory right)
+        => left.CompareTo(right) >= 0;
+}
 
 public static class TrainCategories
 {
     private static readonly Dictionary<string, TrainCategory> Map = new(StringComparer.OrdinalIgnoreCase)
     {
         ["EIP"] = new("InterCity Premium", TrainCategoryTier.Express),
-        ["EIC"] = new("InterCity Express", TrainCategoryTier.Express),
+        ["EIC"] = new("Express InterCity", TrainCategoryTier.Express),
         ["IC"]  = new("InterCity",         TrainCategoryTier.InterCity),
         ["EC"]  = new("InterCity",         TrainCategoryTier.InterCity),
         ["EN"]  = new("InterCity",         TrainCategoryTier.InterCity),
@@ -30,12 +51,24 @@ public static class TrainCategories
         if (string.IsNullOrWhiteSpace(plkSymbol))
             return new("Unknown", TrainCategoryTier.Other);
 
-        if (Map.TryGetValue(plkSymbol, out var known))
+        foreach (var symbol in plkSymbol.Split('/'))
+        {
+            var category = ResolveSingle(symbol.Trim());
+            if (category.Tier != TrainCategoryTier.Other)
+                return category;
+        }
+
+        return ResolveSingle(plkSymbol);
+    }
+    
+    private static TrainCategory ResolveSingle(string symbol)
+    {
+        if (Map.TryGetValue(symbol, out var known))
             return known;
 
-        if (CommuterPattern.IsMatch(plkSymbol))
-            return new(plkSymbol, TrainCategoryTier.Commuter);
+        if (CommuterPattern.IsMatch(symbol))
+            return new(symbol, TrainCategoryTier.Commuter);
 
-        return new($"Other ({plkSymbol})", TrainCategoryTier.Other);
+        return new($"Other ({symbol})", TrainCategoryTier.Other);
     }
 }

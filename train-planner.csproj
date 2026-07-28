@@ -7,6 +7,7 @@
         <RootNamespace>TrainPlanner</RootNamespace>
         <AssemblyName>$(AssemblyName.Replace(' ', '_'))</AssemblyName>
         <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+        <DefaultItemExcludes>$(DefaultItemExcludes);train-planner.Tests/**</DefaultItemExcludes>
     </PropertyGroup>
 
     <ItemGroup>

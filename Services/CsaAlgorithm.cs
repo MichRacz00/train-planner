@@ -114,7 +114,7 @@ internal static class CsaAlgorithm
 
     private static bool Dominates(Label existing, Label candidate)
     {
-        return existing.Arrival <= candidate.Arrival
+        return existing.Arrival <= candidate.Arrival 
                && existing.TransferCount <= candidate.TransferCount;
     }
 }

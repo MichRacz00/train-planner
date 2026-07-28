@@ -14,7 +14,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
 
         var routes = await routeCache.GetRoutesAsync(travelDate, ct);
         var legs = ConnectionBuilder.Build(routes, travelDate, logger, ct);
-
+        
         var trips = new List<Journey>();
         var nextDep = travelDate.ToDateTime(departureAfter);
         var midnight = travelDate.ToDateTime(TimeOnly.MinValue).AddDays(1);
@@ -30,21 +30,31 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
             trips.AddRange(newTrips);
         }
         
-        var results = DeduplicateByArrivalMinute(trips)
+        var results = ParetoFilter(trips)
             .OrderBy(t => t.Departure)
             .ToList();
 
-        logger.LogInformation("Complete: {Raw} trips -> {Result} after arrival-minute dedup in {ElapsedMs}ms",
+        logger.LogInformation("Complete: {Raw} trips -> {Result} after Pareto filter in {ElapsedMs}ms",
             trips.Count, results.Count, sw.ElapsedMilliseconds);
 
         sw.Stop();
         return results;
     }
 
-    private static IEnumerable<Journey> DeduplicateByArrivalMinute(IEnumerable<Journey> group)
+    private static IEnumerable<Journey> ParetoFilter(IEnumerable<Journey> journeys)
     {
-        return group
-            .GroupBy(t => (long)t.Arrival.TimeOfDay.TotalMinutes)
-            .Select(bucket => bucket.MaxBy(t => t.Departure)!);
+        // Keep a journey only if its transfer count is strictly less than the minimum
+        // seen so far among all journeys with an earlier or equal arrival.
+        // Scanning by ascending arrival means each survivor represents a genuine
+        // trade-off: it arrives later but requires fewer transfers than everything faster.
+        var bestTransfersSoFar = int.MaxValue;
+        foreach (var journey in journeys.OrderBy(j => j.Arrival))
+        {
+            if (journey.Transfers < bestTransfersSoFar)
+            {
+                bestTransfersSoFar = journey.Transfers;
+                yield return journey;
+            }
+        }
     }
 }

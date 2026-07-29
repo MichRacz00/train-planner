@@ -9,7 +9,7 @@ namespace TrainPlanner.Services;
 /// Uses IServiceScopeFactory to resolve the Scoped IPlkTripService on demand,
 /// avoiding the Singleton-consumes-Scoped lifetime violation.
 /// </summary>
-public class RouteCache(IServiceScopeFactory scopeFactory, ILogger<RouteCache> logger)
+public class RouteCache(IServiceScopeFactory scopeFactory, ILogger<RouteCache> logger) : IRouteSource
 {
     private readonly Dictionary<DateOnly, List<PlkRouteDto>> _cache = new();
     private readonly SemaphoreSlim _lock = new(1, 1);

@@ -4,7 +4,7 @@ using TrainPlanner.Models;
 
 namespace TrainPlanner.Services;
 
-public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger) : ITripPathfinder
+public class CsaPathfinder(IRouteSource routeSource, ILogger<CsaPathfinder> logger) : ITripPathfinder
 {
     public async Task<IReadOnlyList<Journey>> FindTripsAsync(
         int fromStationId, int toStationId, DateOnly travelDate, TimeOnly departureAfter = default, CancellationToken ct = default)
@@ -12,7 +12,7 @@ public class CsaPathfinder(RouteCache routeCache, ILogger<CsaPathfinder> logger)
         var sw = Stopwatch.StartNew();
         logger.LogInformation("Starting search: {FromStationId} -> {ToStationId} on {TravelDate}", fromStationId, toStationId, travelDate);
 
-        var routes = await routeCache.GetRoutesAsync(travelDate, ct);
+        var routes = await routeSource.GetRoutesAsync(travelDate, ct);
         var legs = ConnectionBuilder.Build(routes, travelDate, logger, ct);
         
         var trips = new List<Journey>();

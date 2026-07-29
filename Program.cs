@@ -22,6 +22,7 @@ builder.Services.AddHttpClient("PlkApi", (sp, client) =>
 
 builder.Services.AddScoped<IPlkTripService, PlkTripService>();
 builder.Services.AddSingleton<RouteCache>();
+builder.Services.AddSingleton<IRouteSource>(sp => sp.GetRequiredService<RouteCache>());
 builder.Services.AddScoped<ITripPathfinder, CsaPathfinder>();
 
 

@@ -16,6 +16,7 @@ internal static class CsaAlgorithm
         public Label? Previous { get; init; }
         public int TransferCount { get; init; }
         public HashSet<int> VisitedStations { get; init; } = [];
+        public DateTime Departure { get; init; }
     }
 
     /// <summary>
@@ -62,7 +63,8 @@ internal static class CsaAlgorithm
                     TransferCount = label.TransferCount + (isTransfer ? 1 : 0),
                     LastLeg = leg,
                     Previous = label,
-                    VisitedStations = [.. label.VisitedStations, leg.ToStationId]
+                    VisitedStations = [.. label.VisitedStations, leg.ToStationId],
+                    Departure = label.LastLeg == null ? leg.Departure : label.Departure
                 };
 
                 if (!labels.TryGetValue(leg.ToStationId, out var destinationLabels))
@@ -114,7 +116,13 @@ internal static class CsaAlgorithm
 
     private static bool Dominates(Label existing, Label candidate)
     {
-        return existing.Arrival <= candidate.Arrival 
-               && existing.TransferCount <= candidate.TransferCount;
+        if (existing.Arrival > candidate.Arrival) return false;
+        if (existing.TransferCount > candidate.TransferCount) return false;
+        // Same transfer count but different last-leg train — don't dominate,
+        // because the candidate's train may have a zero-wait continuation
+        // that the existing train doesn't.
+        if (existing.TransferCount == candidate.TransferCount &&
+            existing.LastLeg?.ScheduleId != candidate.LastLeg?.ScheduleId) return false;
+        return true;
     }
 }

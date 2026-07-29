@@ -22,6 +22,28 @@ internal static class PlkFixture
     /// Thrown when the fixture file does not exist.
     /// Run: dotnet run --project TrainPlanner.FixtureCapture -- &lt;date&gt;
     /// </exception>
+    /// <summary>
+    /// Returns the raw <see cref="PlkRouteDto"/> list from the fixture file,
+    /// without running ConnectionBuilder. Useful for injecting into
+    /// <see cref="FixtureRouteSource"/>.
+    /// </summary>
+    public static List<PlkRouteDto> LoadRoutes(string fileName)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);
+
+        if (!File.Exists(path))
+            throw new FileNotFoundException(
+                $"Fixture not found at '{path}'. " +
+                $"Run: dotnet run --project TrainPlanner.FixtureCapture -- <date>",
+                path);
+
+        var raw  = File.ReadAllText(path);
+        var resp = JsonSerializer.Deserialize<PlkScheduleResponse>(raw, JsonOpts)
+                   ?? throw new InvalidDataException($"Failed to deserialize fixture: {path}");
+
+        return resp.Routes ?? [];
+    }
+
     public static List<JourneySegment> LoadLegs(string fileName, DateOnly date)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);

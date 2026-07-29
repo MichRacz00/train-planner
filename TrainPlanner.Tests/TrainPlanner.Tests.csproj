@@ -21,4 +21,8 @@
         <ProjectReference Include="..\TrainPlanner.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <None Update="Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

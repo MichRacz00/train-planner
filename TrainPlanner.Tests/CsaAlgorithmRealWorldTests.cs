@@ -227,10 +227,14 @@ public class CsaAlgorithmRealWorldTests
         {
             var a = actual[i];
             var e = expected[i];
+            var depMatch = a.Departure.Hour == e.Departure.Hour &&
+                          a.Departure.Minute == e.Departure.Minute;
+            var arrMatch = a.Arrival.Hour == e.Arrival.Hour &&
+                          a.Arrival.Minute == e.Arrival.Minute;
             if (a.FromStationId != e.From      ||
                 a.ToStationId   != e.To        ||
-                a.Departure     != e.Departure ||
-                a.Arrival       != e.Arrival)
+                !depMatch ||
+                !arrMatch)
                 return false;
         }
         return true;

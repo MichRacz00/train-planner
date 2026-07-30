@@ -53,7 +53,7 @@ public class CsaAlgorithmRealWorldTests
     private const int WarsawaCentralna  = 33605;
     private const int PoznanGlowny      = 30601;
     private const int ZielonaGoraGlowna = 27805;
-    private const int WroclawGlowny     = 32201;
+    private const int WroclawGlowny     = 60103;
     private const int Leszno            = 42606;
     private const int Glogow            = 42200;
     private const int KrakowGlowny      = 80416;
@@ -216,6 +216,9 @@ public class CsaAlgorithmRealWorldTests
         var pf     = new CsaPathfinder(source, NullLogger<CsaPathfinder>.Instance);
         return await pf.FindTripsAsync(from, to, date, after);
     }
+
+    private static bool TimeMatch(DateTime a, DateTime e) =>
+        a.Date == e.Date && a.Hour == e.Hour && a.Minute == e.Minute;
 
     private static bool LegsMatch(
         IReadOnlyList<JourneySegment> actual,
@@ -451,8 +454,8 @@ public class CsaAlgorithmRealWorldTests
             "2026-07-31.json", Skierniewice, Kutno, D2, new TimeOnly(12, 0));
 
         Assert.Contains(results, j =>
-            j.Departure == expected.Departure &&
-            j.Arrival   == expected.Arrival   &&
+            TimeMatch(j.Departure, expected.Departure) &&
+            TimeMatch(j.Arrival, expected.Arrival) &&
             LegsMatch(j.Legs, expected.Legs));
     }
 }

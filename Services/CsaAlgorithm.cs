@@ -33,6 +33,7 @@ internal static class CsaAlgorithm
 
         labels[fromStationId] =
         [
+            // TODO add category sequence
             new Label
             {
                 Arrival = earliestDeparture,
@@ -116,13 +117,19 @@ internal static class CsaAlgorithm
 
     private static bool Dominates(Label existing, Label candidate)
     {
+        // TODO comapre seuqence of train categories
         if (existing.Arrival > candidate.Arrival) return false;
         if (existing.TransferCount > candidate.TransferCount) return false;
-        // Same transfer count but different last-leg train — don't dominate,
-        // because the candidate's train may have a zero-wait continuation
-        // that the existing train doesn't.
-        if (existing.TransferCount == candidate.TransferCount &&
-            existing.LastLeg?.ScheduleId != candidate.LastLeg?.ScheduleId) return false;
+        if (existing.LastLeg?.Category != candidate.LastLeg?.Category) return false;
+
+        if (existing.LastLeg?.ToStationId == 27805 &&
+            existing.LastLeg.Arrival.TimeOfDay > new TimeSpan(20, 0, 0) &&
+            existing.LastLeg.Arrival.TimeOfDay < new TimeSpan(21, 0, 0))
+        {
+            Console.WriteLine(
+                $"{existing.LastLeg} dominates {candidate.LastLeg}");
+        }
+        
         return true;
     }
 }

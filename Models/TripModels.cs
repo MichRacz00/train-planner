@@ -94,7 +94,7 @@ public sealed record JourneySegment
             : $"{Category.DisplayName} {_trainName}";
 
     public override string ToString() =>
-        $"{GetFullTrainName()} {FromStationId}->{ToStationId} {DepartureTime:HH:mm}-{ArrivalTime:HH:mm}";
+        $"[{FromStationId}] {DepartureTime:HH:mm} -{GetFullTrainName()}-> {ArrivalTime:HH:mm} [{ToStationId}]";
 }
 
 // A complete multi-segment journey produced by the CSA pathfinder
@@ -108,9 +108,9 @@ public record Journey(
     public TimeOnly DepartureTimeOfDay => TimeOnly.FromDateTime(Departure);
     public TimeOnly ArrivalTimeOfDay   => TimeOnly.FromDateTime(Arrival);
     
-    public IReadOnlyList<JourneySegment> Legs { get; } = BuildServiceLegs(Segments);
+    public IReadOnlyList<JourneySegment> Legs { get; } = BuildJourneyLegs(Segments);
 
-    private static IReadOnlyList<JourneySegment> BuildServiceLegs(IReadOnlyList<JourneySegment> legs)
+    private static IReadOnlyList<JourneySegment> BuildJourneyLegs(IReadOnlyList<JourneySegment> legs)
     {
         var result = new List<JourneySegment>();
         var i = 0;
@@ -129,5 +129,25 @@ public record Journey(
         return result;
     }
 
-    public override string ToString() => string.Join(" | ", Legs);
+    public override string ToString()
+    {
+        if (Legs.Count == 0)
+            return string.Empty;
+
+        var parts = new List<string>
+        {
+            $"[{Legs[0].FromStationId.ToString()}]"
+        };
+
+        foreach (var leg in Legs)
+        {
+            parts.Add(
+                $"{leg.Departure:HH:mm} -{leg.GetFullTrainName()}-> {leg.Arrival:HH:mm}"
+            );
+
+            parts.Add($"[{leg.ToStationId.ToString()}]");
+        }
+
+        return string.Join(" ", parts);
+    }
 }

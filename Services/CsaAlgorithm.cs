@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using TrainPlanner.Models;
 
 namespace TrainPlanner.Services;
@@ -17,6 +18,7 @@ internal static class CsaAlgorithm
         public int TransferCount { get; init; }
         public HashSet<int> VisitedStations { get; init; } = [];
         public DateTime Departure { get; init; }
+        public ImmutableArray<(int, int)> ScheduleSequence { get; init; } = []; //TODO: possibly merge LastLeg into this
     }
 
     /// <summary>
@@ -37,7 +39,7 @@ internal static class CsaAlgorithm
             new Label
             {
                 Arrival = earliestDeparture,
-                VisitedStations = [fromStationId]
+                VisitedStations = [fromStationId],
             }
         ];
 
@@ -57,6 +59,8 @@ internal static class CsaAlgorithm
                 var isTransfer = label.LastLeg != null &&
                                  (leg.ScheduleId != label.LastLeg.ScheduleId ||
                                   leg.OrderId    != label.LastLeg.OrderId);
+
+                if (label.TransferCount > 6) continue;
                 
                 var candidate = new Label
                 {
@@ -65,7 +69,12 @@ internal static class CsaAlgorithm
                     LastLeg = leg,
                     Previous = label,
                     VisitedStations = [.. label.VisitedStations, leg.ToStationId],
-                    Departure = label.LastLeg == null ? leg.Departure : label.Departure
+                    Departure = label.LastLeg == null ? leg.Departure : label.Departure,
+                    ScheduleSequence = label.LastLeg is null
+                        ? [(leg.ScheduleId, leg.OrderId)]
+                        : isTransfer
+                            ? label.ScheduleSequence.Add((leg.ScheduleId, leg.OrderId))
+                            : label.ScheduleSequence
                 };
 
                 if (!labels.TryGetValue(leg.ToStationId, out var destinationLabels))
@@ -120,8 +129,19 @@ internal static class CsaAlgorithm
         // TODO comapre seuqence of train categories
         if (existing.Arrival > candidate.Arrival) return false;
         if (existing.TransferCount > candidate.TransferCount) return false;
-        if (existing.LastLeg?.Category != candidate.LastLeg?.Category) return false;
-
+        //if (existing.LastLeg?.Category != candidate.LastLeg?.Category) return false;
+        
+        // Preserve alternative train choices.
+        // When two labels reach the same station with identical arrival time
+        // and transfer count, neither dominates the other unless they
+        // represent the same sequence of train services.
+        if (existing.Arrival == candidate.Arrival &&
+            existing.TransferCount == candidate.TransferCount &&
+            !existing.ScheduleSequence.SequenceEqual(candidate.ScheduleSequence))
+        {
+            return false;
+        }
+        
         if (existing.LastLeg?.ToStationId == 27805 &&
             existing.LastLeg.Arrival.TimeOfDay > new TimeSpan(20, 0, 0) &&
             existing.LastLeg.Arrival.TimeOfDay < new TimeSpan(21, 0, 0))

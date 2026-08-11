@@ -18,7 +18,7 @@ internal static class CsaAlgorithm
         public int TransferCount { get; init; }
         public HashSet<int> VisitedStations { get; init; } = [];
         public DateTime Departure { get; init; }
-        public ImmutableArray<(int, int)> ScheduleSequence { get; init; } = []; //TODO: possibly merge LastLeg into this
+        public ImmutableArray<JourneySegment> ScheduleSequence { get; init; } = []; //TODO: possibly merge LastLeg into this
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ internal static class CsaAlgorithm
                 VisitedStations = [fromStationId],
             }
         ];
-
+        
         foreach (var leg in sortedLegs)
         {
             if (!labels.TryGetValue(leg.FromStationId, out var stationLabels))
@@ -59,8 +59,6 @@ internal static class CsaAlgorithm
                 var isTransfer = label.LastLeg != null &&
                                  (leg.ScheduleId != label.LastLeg.ScheduleId ||
                                   leg.OrderId    != label.LastLeg.OrderId);
-
-                if (label.TransferCount > 6) continue;
                 
                 var candidate = new Label
                 {
@@ -71,10 +69,17 @@ internal static class CsaAlgorithm
                     VisitedStations = [.. label.VisitedStations, leg.ToStationId],
                     Departure = label.LastLeg == null ? leg.Departure : label.Departure,
                     ScheduleSequence = label.LastLeg is null
+                        ? [leg]
+                        : isTransfer
+                            ? label.ScheduleSequence.Add(leg)
+                            : label.ScheduleSequence
+                    /*
+                    ScheduleSequence = label.LastLeg is null
                         ? [(leg.ScheduleId, leg.OrderId)]
                         : isTransfer
                             ? label.ScheduleSequence.Add((leg.ScheduleId, leg.OrderId))
                             : label.ScheduleSequence
+                            */
                 };
 
                 if (!labels.TryGetValue(leg.ToStationId, out var destinationLabels))
@@ -131,13 +136,14 @@ internal static class CsaAlgorithm
         if (existing.TransferCount > candidate.TransferCount) return false;
         //if (existing.LastLeg?.Category != candidate.LastLeg?.Category) return false;
         
-        // Preserve alternative train choices.
-        // When two labels reach the same station with identical arrival time
-        // and transfer count, neither dominates the other unless they
-        // represent the same sequence of train services.
-        if (existing.Arrival == candidate.Arrival &&
-            existing.TransferCount == candidate.TransferCount &&
-            !existing.ScheduleSequence.SequenceEqual(candidate.ScheduleSequence))
+        var existingCategories = existing.ScheduleSequence
+            .Select(x => x.Category);
+
+        var candidateCategories = candidate.ScheduleSequence
+            .Select(x => x.Category);
+        
+        if (existing.TransferCount == candidate.TransferCount &&
+            !existingCategories.SequenceEqual(candidateCategories))
         {
             return false;
         }
@@ -147,7 +153,9 @@ internal static class CsaAlgorithm
             existing.LastLeg.Arrival.TimeOfDay < new TimeSpan(21, 0, 0))
         {
             Console.WriteLine(
-                $"{existing.LastLeg} dominates {candidate.LastLeg}");
+                $"{string.Join(" -> ", existing.ScheduleSequence)} dominates " +
+                $"{string.Join(" -> ", candidate.ScheduleSequence)}");
+            Console.WriteLine();
         }
         
         return true;

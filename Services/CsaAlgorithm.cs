@@ -10,6 +10,8 @@ namespace TrainPlanner.Services;
 /// </summary>
 internal static class CsaAlgorithm
 {
+    private static readonly int MinimumTransferTimeMinutes = 0;
+    
     private sealed class Label
     {
         public DateTime Arrival { get; init; }
@@ -50,15 +52,18 @@ internal static class CsaAlgorithm
 
             foreach (var label in stationLabels.ToList())
             {
-                if (label.Arrival > leg.Departure)
+                var isTransfer = label.LastLeg != null &&
+                                 (leg.ScheduleId != label.LastLeg.ScheduleId ||
+                                  leg.OrderId    != label.LastLeg.OrderId);
+
+                var departureAfterTransfer = isTransfer
+                    ? label.Arrival.AddMinutes(MinimumTransferTimeMinutes)
+                    : label.Arrival;
+                if (departureAfterTransfer > leg.Departure)
                     continue;
                 
                 if (label.VisitedStations.Contains(leg.ToStationId)) 
                     continue;
-                
-                var isTransfer = label.LastLeg != null &&
-                                 (leg.ScheduleId != label.LastLeg.ScheduleId ||
-                                  leg.OrderId    != label.LastLeg.OrderId);
                 
                 var candidate = new Label
                 {
